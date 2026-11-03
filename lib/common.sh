@@ -163,6 +163,15 @@ winpath() {
   printf 'Z:%s\n' "${path//\//\\}"
 }
 
+# prefix_winpath COMPATDATA PATH - PATH as programs in that prefix see it: C: for its own drive_c.
+prefix_winpath() {
+  local drive=$1/pfx/drive_c path=$2
+  case $path in
+    "$drive"/*) path=${path#"$drive"}; printf 'C:%s\n' "${path//\//\\}" ;;
+    *) winpath "$path" ;;
+  esac
+}
+
 python() { python3 -I "$@"; }
 
 save_state() {

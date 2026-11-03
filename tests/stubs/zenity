@@ -3,6 +3,7 @@
 # one line per window that takes an answer:
 #   cancel      the window is cancelled (exit 1); for --question this is "No"
 #   anything    printed as the window's answer (exit 0); for --question any other line is "Yes"
+# Past the last line every window is cancelled, so a menu with nothing left to answer closes.
 # --progress windows record what they are sent; --info, --error and --text-info just return.
 kind=
 for arg in "$@"; do
@@ -21,7 +22,8 @@ counter=$STUB_ZENITY_ANSWERS.n
 n=$(cat "$counter" 2>/dev/null || echo 0)
 n=$((n + 1))
 echo "$n" > "$counter"
-answer=$(sed -n "${n}p" "$STUB_ZENITY_ANSWERS")
+answer=cancel
+[ "$n" -le "$(wc -l < "$STUB_ZENITY_ANSWERS")" ] && answer=$(sed -n "${n}p" "$STUB_ZENITY_ANSWERS")
 printf 'answer %s\n' "$answer" >> "$STUB_ZENITY_LOG"
 [ "$answer" = cancel ] && exit 1
 [ "$kind" = question ] && exit 0

@@ -124,5 +124,98 @@ class ShortcutFileTest(unittest.TestCase):
             self.assertEqual(call("has", tool, root, exe), 1)
 
 
+FFNX_TOML = '''#[RENDERING BACKEND]
+# - 0: Auto
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
+renderer_backend = 0\r
+fullscreen = false
+
+# enable_steam_achievements = true
+enable_steam_achievements = false # Steam Compatibility
+'''
+
+
+class FfnxTomlTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.drive_c = os.path.join(self.dir.name, "drive_c")
+        self.game = os.path.join(self.drive_c, "FINAL FANTASY VII", "ff7", "workingdir")
+        os.makedirs(self.game)
+        self.settings = os.path.join(self.dir.name, "settings.xml")
+        self.set_exe(r"C:\FINAL FANTASY VII\ff7\workingdir\ff7_en.exe")
+        self.toml = os.path.join(self.game, "FFNx.toml")
+        with open(self.toml, "w", newline="") as f:
+            f.write(FFNX_TOML)
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def set_exe(self, exe):
+        with open(self.settings, "w", encoding="utf-8-sig") as f:
+            f.write('<?xml version="1.0" encoding="utf-8"?>\n<Settings xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n'
+                    '  <FF7Exe>%s</FF7Exe>\n</Settings>\n' % exe)
+
+    def run_tool(self, steam):
+        return subprocess.run([sys.executable, "-I", os.path.join(LIB, "ffnx_toml.py"), self.settings, self.drive_c, steam]).returncode
+
+    def read(self):
+        with open(self.toml, newline="") as f:
+            return f.read()
+
+    def test_plain_launch(self):
+        self.assertEqual(self.run_tool("0"), 0)
+        text = self.read()
+        self.assertIn("renderer_backend = 3\r\n", text)
+        self.assertIn("enable_steam_achievements = false # Steam Compatibility\n", text)
+        self.assertIn("# - 0: Auto\n", text)
+        self.assertIn("# enable_steam_achievements = true\n", text)
+        self.assertEqual(text.replace("= 3", "= 0"), FFNX_TOML)
+
+    def test_steam_launch(self):
+        self.assertEqual(self.run_tool("1"), 0)
+        self.assertIn("enable_steam_achievements = true # Steam Compatibility\n", self.read())
+        self.assertEqual(self.run_tool("0"), 0)
+        self.assertIn("enable_steam_achievements = false # Steam Compatibility\n", self.read())
+
+    def test_keeps_a_chosen_backend(self):
+        with open(self.toml, "w") as f:
+            f.write("renderer_backend = 5\n")
+        self.assertEqual(self.run_tool("0"), 0)
+        self.assertEqual(self.read(), "renderer_backend = 5\n")
+
+    def test_z_drive(self):
+        self.set_exe("Z:" + self.game.replace("/", "\\") + "\\ff7_en.exe")
+        self.assertEqual(self.run_tool("1"), 0)
+        self.assertIn("enable_steam_achievements = true", self.read())
+
+    def test_no_ffnx_yet(self):
+        os.remove(self.toml)
+        self.assertEqual(self.run_tool("0"), 3)
+        self.assertFalse(os.path.exists(self.toml))
+
+    def test_other_drive(self):
+        self.set_exe(r"D:\ff7.exe")
+        self.assertEqual(self.run_tool("0"), 1)
+
+
+class WarningTest(unittest.TestCase):
+    def test_installer_warning_is_the_readme_warning(self):
+        import re
+        with open(os.path.join(REPO, "README.md"), encoding="utf-8") as f:
+            quote = []
+            for line in f:
+                if not line.startswith(">"):
+                    if quote:
+                        break
+                    continue
+                quote.append(line[1:].strip())
+        text = "\n".join(line for line in quote if line != "[!WARNING]")
+        paragraphs = [" ".join(p.split("\n")).strip() for p in text.split("\n\n")]
+        readme = [re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", p.replace("**", "")) for p in paragraphs if p]
+        with open(os.path.join(REPO, "assets", "WARNING.txt"), encoding="utf-8") as f:
+            ours = [p.strip() for p in f.read().split("\n\n") if p.strip()]
+        self.assertEqual(ours, readme)
+
+
 if __name__ == "__main__":
     unittest.main()

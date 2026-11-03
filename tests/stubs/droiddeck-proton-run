@@ -23,6 +23,8 @@ else
 fi
 [ -f "$program" ] || { echo "stub: $program does not exist" >&2; exit 2; }
 printf '%s\t%s\t%s\t%s\t%s\n' "$verb" "${compatdata##*/}" "${program##*/}" "${FEX_X87REDUCEDPRECISION:-unset}" "$*" >> "$STUB_LOG"
+# alongside the zenity stub's log too, so tests can see what was asked before the work started
+[ -n "${STUB_ZENITY_LOG:-}" ] && printf 'proton-run %s %s\n' "$verb" "${program##*/}" >> "$STUB_ZENITY_LOG"
 pfx=$compatdata/pfx
 mkdir -p "$pfx/drive_c/windows/system32" "$pfx/drive_c/windows/syswow64" "$pfx/drive_c/users/steamuser/Documents" "$pfx/dosdevices"
 [ -f "$pfx/user.reg" ] || printf 'WINE REGISTRY Version 2\n;; All keys relative to \\\\User\\\\S-1-5-21-0-0-0-1000\n\n#arch=win64\n\n[Software\\\\Wine] 1700000000\n#time=1\n"Version"="win10"\n' > "$pfx/user.reg"

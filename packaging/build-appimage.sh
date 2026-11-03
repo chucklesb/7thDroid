@@ -47,12 +47,12 @@ export ALWAYS_SOFTWARE=1
 quick-sharun /usr/bin/zenity
 
 mkdir -p AppDir/share/7thdroid
-cp -r install.sh menu.sh lib assets LICENSE README.md VERSION AppDir/share/7thdroid/
+cp -r 7thdroid.sh lib assets LICENSE README.md VERSION AppDir/share/7thdroid/
 # Our AppRun replaces sharun's, so sharun's environment is applied to zenity only.
 rm -f AppDir/AppRun
 cp packaging/AppRun AppDir/AppRun
 cp packaging/zenity AppDir/7thdroid-zenity
-chmod +x AppDir/AppRun AppDir/7thdroid-zenity AppDir/share/7thdroid/install.sh AppDir/share/7thdroid/menu.sh
+chmod +x AppDir/AppRun AppDir/7thdroid-zenity AppDir/share/7thdroid/7thdroid.sh
 
 quick-sharun --make-appimage
 
@@ -72,6 +72,6 @@ cp dist/"$OUTNAME" /tmp/check/
   status=0
   APPDIR=$root xvfb-run -a "$root/7thdroid-zenity" --info --text=7thDroid --timeout=2 || status=$?
   [ "$status" -eq 5 ] || { echo "zenity did not open a window (exit $status)" >&2; exit 1; }
-  bash "$root/share/7thdroid/install.sh" --help >/dev/null
+  bash "$root/share/7thdroid/7thdroid.sh" --help >/dev/null
 )
 echo "Built dist/$OUTNAME"

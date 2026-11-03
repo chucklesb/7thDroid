@@ -27,18 +27,31 @@ zen() {
   "$UI_ZENITY" --title="$APP_NAME" "$@" 2>/dev/null
 }
 
+# zenity reads backslash escapes (g_strcompress) in markup text and progress lines, so C:\7th Heaven
+# would show \7 as a control character. --no-markup message windows take their text as it is.
+zen_text() {
+  printf '%s' "${1//\\/\\\\}"
+}
+
 # zenity reads --text as Pango markup; paths with & or < must not be taken for it.
 markup() {
-  local text=${1//&/&amp;}
+  local text
+  text=$(zen_text "$1")
+  text=${text//&/&amp;}
   text=${text//</&lt;}
   printf '%s' "${text//>/&gt;}"
 }
 
-# A cancelled window ends the run; nothing is half-asked.
+# A cancelled window ends the run; nothing is half-asked. Closing the menu is not an error.
+UI_CANCEL_STATUS=130
 ui_cancelled() {
   ui_progress_stop
   printf '\n%s\n' "Cancelled." >&2
-  exit 130
+  exit "$UI_CANCEL_STATUS"
+}
+
+ui_warning() {
+  zen --question --no-markup --width=700 --text="$1" --ok-label=Continue --cancel-label=Quit || ui_cancelled
 }
 
 ui_ask() {
@@ -99,7 +112,7 @@ ui_progress_start() {
 
 ui_progress() {
   [ -n "$UI_PROGRESS_FD" ] || return 0
-  printf '# %s\n' "${*//$'\n'/ }" >&"$UI_PROGRESS_FD" 2>/dev/null || true
+  printf '# %s\n' "$(zen_text "${*//$'\n'/ }")" >&"$UI_PROGRESS_FD" 2>/dev/null || true
 }
 
 ui_progress_stop() {

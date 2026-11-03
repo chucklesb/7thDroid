@@ -5,7 +5,7 @@ SEVENTH_REPO=tsunamods-codes/7th-Heaven
 SEVENTH_API=${SEVENTH_API:-https://api.github.com/repos/$SEVENTH_REPO}
 SEVENTH_DIR_WIN='C:\7th Heaven'
 
-# select_seventh_heaven -> SEVENTH_CHANNEL, SEVENTH_TAG, SEVENTH_URL, SEVENTH_FILE
+# select_seventh_heaven -> SEVENTH_CHANNEL, SEVENTH_TAG, SEVENTH_URL, SEVENTH_FILE (downloaded later)
 select_seventh_heaven() {
   step "Choosing the 7th Heaven version"
   if [ -z "$SEVENTH_CHANNEL" ]; then
@@ -37,19 +37,29 @@ if exes:
     *) die "Unknown 7th Heaven version '$SEVENTH_CHANNEL' (use stable or canary)." ;;
   esac
   ok "7th Heaven $SEVENTH_TAG ($SEVENTH_CHANNEL)"
-  SEVENTH_INSTALLER=$(download "$SEVENTH_URL" "$SEVENTH_FILE")
 }
 
 seventh_exe() { printf '%s\n' "$1/pfx/drive_c/7th Heaven/7th Heaven.exe"; }
 
+# ask_seventh_install COMPATDATA -> SEVENTH_RUN: 1 to run 7th Heaven's installer, 0 to keep what is there
+ask_seventh_install() {
+  SEVENTH_RUN=1
+  if [ -f "$(seventh_exe "$1")" ] && [ "$REINSTALL" != 1 ] \
+     && ! ask_yn "7th Heaven is already installed in this prefix. Run its installer again (update or repair)?" n; then
+    SEVENTH_RUN=0
+  fi
+  return 0
+}
+
 install_seventh_heaven() {
   local compatdata=$1 exe
   exe=$(seventh_exe "$compatdata")
-  if [ -f "$exe" ] && [ "$REINSTALL" != 1 ] \
-     && ! ask_yn "7th Heaven is already installed in this prefix. Run its installer again (update or repair)?" n; then
+  if [ "$SEVENTH_RUN" != 1 ]; then
+    info "Keeping the 7th Heaven already installed."
     return 0
   fi
-  info "Installing 7th Heaven to $SEVENTH_DIR_WIN. If 7th Heaven opens when it finishes, close it to continue."
+  SEVENTH_INSTALLER=$(download "$SEVENTH_URL" "$SEVENTH_FILE")
+  info "Installing 7th Heaven to $SEVENTH_DIR_WIN."
   fex_run "$compatdata" "$SEVENTH_INSTALLER" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- \
     /DIR="$SEVENTH_DIR_WIN" /LOG="C:\\$APP_ID-7thHeaven-install.log" || warn "The 7th Heaven installer reported an error."
   [ "$DRY_RUN" = 1 ] || [ -f "$exe" ] \
@@ -65,7 +75,7 @@ configure_seventh_heaven() {
   info "Pointing 7th Heaven at $game_exe ($version)"
   [ "$DRY_RUN" = 1 ] && return 0
   mkdir -p "$workshop/profiles" "$compatdata/pfx/drive_c/7th Heaven/mods"
-  python - "$ASSETS_DIR/settings.xml.in" "$workshop/settings.xml" "$(winpath "$game_exe")" "$version" \
+  python - "$ASSETS_DIR/settings.xml.in" "$workshop/settings.xml" "$(prefix_winpath "$compatdata" "$game_exe")" "$version" \
     "$SEVENTH_DIR_WIN\\mods" "$channel" <<'EOF'
 import os, re, sys
 template, target, exe, version, library, channel = sys.argv[1:]

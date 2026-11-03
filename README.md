@@ -28,7 +28,7 @@ Valve's ARM64 Proton and FEX.
    - a GOG installer (`setup_final_fantasy_vii_*.exe`);
    - the 1998 CD-ROM release, as disc images (`.iso`) or folders copied from the discs.
 2. **Prepares a Proton prefix of 7th Heaven's own**, made by [DroidDeck-Proton](https://github.com/Droid-Deck/DroidDeck-Proton).
-   - The game files stay where they are; 7th Heaven reaches them through Wine's `Z:` drive, which is the whole Linux file system.
+   - For an installed Steam or GOG game, or a game folder you name, it offers to copy the game (3–4 GB) into the prefix and point 7th Heaven at the copy (`C:\FINAL FANTASY VII`), so the original game files are never changed. Without the copy, the game files stay where they are, and 7th Heaven reaches them through Wine's `Z:` drive, which is the whole Linux file system.
    - No other prefix is touched, including the one Steam made for FF7, so vanilla FF7 from Steam keeps working as before.
    - If DroidDeck-Proton isn't your default Proton, 7thDroid sets it for its own prefix only, the same way picking a game's Proton in the DroidDeck app does.
    - It installs the .NET 10 Desktop Runtime that 7th Heaven needs, both x64 and x86, in their newest patch.
@@ -36,10 +36,12 @@ Valve's ARM64 Proton and FEX.
    - It makes Wine prefer 7th Heaven's `dinput.dll`. Without that, mods silently don't load.
 3. **Installs 7th Heaven** silently into `C:\7th Heaven` in that prefix, then points it at your game.
    - You choose the build: the newest stable release, or the canary (development) build.
-4. **Adds shortcuts, if you want them:**
-   - the DroidDeck app's Desktop page;
-   - Steam, as a non-Steam game;
-   - the KDE desktop's menu.
+4. **For a Steam copy of FF7, adds 7th Heaven to Steam** as a non-Steam game. That entry is how
+   **Launch 7th Heaven with Steam** starts it. If Steam is running during the install, the entry is
+   added the first time you choose that instead.
+
+7thDroid asks all its questions first; once it starts preparing the prefix, it runs without stopping
+(only a GOG or CD installer that has to run shows its own windows).
 
 Installers run with the FEX settings DroidDeck uses for .NET programs, including full x87 precision.
 Without that, the GOG installer stops with "File not fpund". 7thDroid passes these settings through `droiddeck-proton-run --verb run`, so your FEX preset in the DroidDeck app doesn't override them. Your preset is left unchanged, and it still applies when you play.
@@ -53,13 +55,14 @@ Without that, the GOG installer stops with "File not fpund". 7thDroid passes the
 ### Good to know
 
 - **Saves:** FF7 run through 7th Heaven keeps its saves in 7th Heaven's prefix, separate from vanilla FF7 started from Steam.
-- **Game files:** 7th Heaven itself writes into the game folder on first run (for the 2026 and GOG releases, `ff7/workingdir` and its own patched `ff7_en.exe`), as it does on Windows. Steam's "Verify integrity of game files" restores the originals.
+- **Game files:** 7th Heaven itself writes into the game folder on first run (for the 2026 and GOG releases, `ff7/workingdir` and its own patched `ff7_en.exe`), as it does on Windows. With the copy in 7th Heaven's prefix (offered during install), that's the copy, and the original game stays untouched. Without it, Steam's "Verify integrity of game files" restores the originals. The copy is part of the prefix, so uninstalling removes it.
 - **Disc folders you supply are never written to:** 7thDroid maps them as CD drives through small folders of links under `~/.local/share/7thdroid/cd/`.
-- **Steam achievements (Steam copies only):** 7th Heaven starts as FF7's Steam app (39140 or 3837340), so FF7 can use the Steam API. To use it:
-  1. In 7th Heaven, turn on **Settings > Game Driver > Advanced > Steam Compatibility**.
-  2. Start 7th Heaven with Steam: choose **Launch 7th Heaven with Steam** in 7thDroid, or start the "7th Heaven" shortcut in Steam. If the shortcut isn't in Steam yet, 7thDroid offers to add it.
+- **Launch from 7thDroid's menu.** Just before each launch, the menu sets two of FFNx's options (7th Heaven's Game Driver settings):
+  - **Graphics API:** Direct3D 11 in place of Auto, since it's the most compatible under DroidDeck. A different API you choose in 7th Heaven is kept.
+  - **Steam Compatibility:** on for **Launch 7th Heaven with Steam**, off for **Launch 7th Heaven**.
 
-  With that setting on, FF7 starts only while Steam is running. Steam Cloud doesn't sync these saves, because they're kept in 7th Heaven's prefix.
+  7th Heaven installs FFNx, with its default settings, the first time you play, so these apply from the second launch on. 7th Heaven also resets them when it updates FFNx, and the menu sets them again on the next launch.
+- **Steam achievements (Steam copies only):** choose **Launch 7th Heaven with Steam**. 7th Heaven starts as FF7's Steam app (39140 or 3837340) through its entry in Steam, so FF7 can use the Steam API. Starting that entry from Steam's library works too, but only the menu sets Steam Compatibility for you. Steam Cloud doesn't sync these saves, because they're kept in 7th Heaven's prefix.
 
 ## Installing
 
@@ -68,19 +71,21 @@ Without that, the GOG installer stops with "File not fpund". 7thDroid passes the
 1. In DroidDeck, open **Desktop > Add an app > GitHub**.
 2. Enter `chucklesb/7thDroid`. DroidDeck downloads the newest 7thDroid AppImage from this repository's
    releases and adds a **7thDroid** tile to the Desktop page.
-3. Open the tile. 7thDroid asks its questions in on-screen windows: which copy of FF7 to use, which
-   7th Heaven build, and which shortcuts to add. A file picker opens in Android's Downloads folder when
-   you need to point it at an installer or disc images.
-4. Open the tile again whenever you like. Once 7th Heaven is installed it offers a menu:
-   **Launch 7th Heaven**, **Launch 7th Heaven with Steam** (Steam copies of FF7 only),
-   **Update or repair 7th Heaven**, **Add or redo shortcuts**, **Show the last log** and
-   **Uninstall 7th Heaven**.
+3. Open the tile. Its menu offers **Install 7th Heaven**. 7thDroid first shows its warning, then asks
+   its questions in on-screen windows: which copy of FF7 to use, which 7th Heaven build, and whether to
+   copy the game into 7th Heaven's prefix. A file picker opens in Android's Downloads folder when you
+   need to point it at an installer or disc images.
+4. When it's done, the menu comes back with everything else: **Launch 7th Heaven**,
+   **Launch 7th Heaven with Steam** (Steam copies of FF7 only), **Update or repair 7th Heaven**,
+   **Show the last log** and **Uninstall 7th Heaven**. Each task returns to the menu when it finishes.
+   The 7thDroid tile is how you start 7th Heaven: 7thDroid adds no tile or menu entry of its own.
 
 To update 7thDroid itself, update the tile from the Desktop page when a new release is out; your 7th
 Heaven install is kept.
 
-Uninstalling removes 7th Heaven's prefix (7th Heaven, its mods, and the FF7 saves made through it), its
-launcher, its shortcuts and its downloads. Your FF7 game files are never touched.
+Uninstalling removes 7th Heaven's prefix (7th Heaven, its mods, the FF7 saves made through it, and the
+game copy if you made one), its launcher, its Steam entry and its downloads. Your original FF7 game files
+are never touched.
 
 ### From a terminal
 
@@ -92,23 +97,26 @@ Konsole on DroidDeck's KDE desktop:
 2. Run:
 
 ```bash
-bash /root/Storage/Download/7thDroid/install.sh
+bash /root/Storage/Download/7thDroid/7thdroid.sh
 ```
 
-Then start 7th Heaven from the shortcuts you added, or with `bash ~/.local/share/7thdroid/"7th Heaven.sh"`.
+It shows the same menu, with typed answers. Start 7th Heaven from that menu too.
 The questions are typed answers there, so the script needs a terminal; on the Desktop page, use the
 AppImage instead.
 
 ### Options
 
+Without a task option the script shows its menu. A task option runs that task on its own instead:
+
 | Option | |
 |---|---|
+| `--install` | Install 7th Heaven, or update or repair it. `--yes` on its own implies it. |
+| `--steam-shortcut` | Only add 7th Heaven's Steam entry, for example after closing Steam. |
+| `--uninstall` | Remove 7th Heaven's prefix, launcher, Steam entry and downloads (not the original game). |
 | `--version stable\|canary` | The 7th Heaven build. If you leave it out, the script asks. |
 | `--source PATH` | Use this game instead of searching. Repeat it once per disc. |
 | `--game-dir DIR` | Where a GOG installer puts the game (default `~/Games/FINAL FANTASY VII`). |
-| `--app-entry`, `--steam`, `--desktop` (and `--no-…`) | Add or skip each shortcut without asking. |
-| `--shortcuts-only` | Only recreate the launcher and shortcuts, for example after closing Steam. |
-| `--uninstall` | Remove 7th Heaven's prefix, launcher, shortcuts and downloads (not the game). |
+| `--copy-game`, `--no-copy-game` | Copy the game into 7th Heaven's prefix, or use it where it is, without asking. |
 | `--winetricks-dinput` | Also run winetricks' `dinput` verb, if a Proton build that ships protonfixes is installed (e.g. DroidDeck-Proton). |
 | `--reinstall` | Run every step again. |
 | `--yes` | Accept every default without asking. |
@@ -118,13 +126,13 @@ The log is written to `~/.local/state/7thdroid/install.log`.
 
 ## Troubleshooting
 
-- **The Steam shortcut won't start.** The shortcut is a Linux script. If Steam tries to run it with Proton, open its Properties → Compatibility and turn off the forced compatibility tool.
-- **The Steam shortcut wasn't added.** Steam has to be closed while shortcuts are written. Close Steam, then run `bash install.sh --shortcuts-only`.
-- **FF7 says "Steam must be running".** 7th Heaven's Steam Compatibility setting is on. Start 7th Heaven with Steam, or turn the setting off in 7th Heaven's Game Driver settings.
-- **Achievements don't unlock.** They need a Steam copy of FF7, the Steam Compatibility setting, and Steam running. If you installed with an earlier 7thDroid, run **Add or redo shortcuts** once so the launcher reports FF7's app id to Steam.
+- **Launch with Steam doesn't start.** 7th Heaven's Steam entry is a Linux script. If Steam tries to run it with Proton, open its Properties → Compatibility and turn off the forced compatibility tool.
+- **The Steam entry wasn't added.** Steam has to be closed while it's written. Choose **Launch 7th Heaven with Steam**, and 7thDroid offers to add it once Steam is closed.
+- **FF7 says "Steam must be running".** Steam Compatibility is on, which happens when 7th Heaven was last started with Steam, or from its entry in Steam's library. Start it from 7thDroid's menu, which sets it for the way you launch.
+- **Achievements don't unlock.** They need a Steam copy of FF7, **Launch 7th Heaven with Steam**, and Steam online. On the very first play, FFNx is still being installed, so start the game a second time. If you installed with an earlier 7thDroid, run **Update or repair 7th Heaven** once so the launcher reports FF7's app id to Steam.
 - **Mods don't load.** Re-run with `--winetricks-dinput` if a Proton with protonfixes is installed, and please report it.
 - **An earlier 7thDroid installed into Steam's FF7 prefix.** That prefix is left as it is. If vanilla FF7 misbehaves, delete `~/.local/share/Steam/steamapps/compatdata/39140` (or `3837340`) and Steam recreates it the next time the game starts.
-- **Paths to DroidDeck's helpers changed.** Each one can be overridden: `DROIDDECK_BIN` (the folder with DroidDeck's helper scripts), `DROIDDECK_PROTON_RUN`, `DROIDDECK_PROTON_EXTRA`, `DROIDDECK_INNOEXTRACT`, `DROIDDECK_MSITOOLS`, `DROIDDECK_STEAM_SHORTCUTS`, `DROIDDECK_STEAM_LAUNCH`, `DROIDDECK_APPS_DIR` and `STEAM_ROOT`.
+- **Paths to DroidDeck's helpers changed.** Each one can be overridden: `DROIDDECK_BIN` (the folder with DroidDeck's helper scripts), `DROIDDECK_PROTON_RUN`, `DROIDDECK_PROTON_EXTRA`, `DROIDDECK_INNOEXTRACT`, `DROIDDECK_MSITOOLS`, `DROIDDECK_STEAM_SHORTCUTS`, `DROIDDECK_STEAM_LAUNCH`, `DROIDDECK_APPS_DIR` (where earlier versions' tiles are removed from) and `STEAM_ROOT`.
 
 ## Development
 
@@ -139,7 +147,7 @@ DROIDDECK_SRC=../DroidDeck python3 -m unittest discover -s tests
 ```
 
 ```bash
-shellcheck -x install.sh menu.sh
+shellcheck -x 7thdroid.sh
 ```
 
 ### Releases
@@ -164,6 +172,11 @@ release is out. `master` only publishes normal releases.
 A pre-release is built as `7thDroid-Canary-<version>-aarch64.AppImage`, named **7thDroid Canary** and
 with a red icon (`packaging/7thdroid-canary.png`), so its tile is told apart from the release's. Both
 tiles work on the same 7th Heaven install.
+
+Release notes: a normal release uses its `## [X.Y.Z]` section of `CHANGELOG.md` ([Keep a
+Changelog](https://keepachangelog.com/) format), and the workflow stops if that section is missing. A
+pre-release lists the commit subjects since the last normal release, leaving out merges and `VERSION`
+bumps.
 
 ## License
 
