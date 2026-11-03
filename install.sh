@@ -27,7 +27,8 @@ usage() {
   cat <<EOF
 Usage: bash install.sh [options]
 
-  --version pinned|latest|canary   7th Heaven build (asked when not given; pinned is $SEVENTH_PINNED_TAG)
+  --version stable|canary          7th Heaven build: the newest release, or the newest development build
+                                   (asked when not given)
   --source PATH                    Use this game instead of searching: an installed FF7 folder, a GOG
                                    installer, CD images (.iso) or disc folders. Repeat for several discs.
   --game-dir DIR                   Where a GOG installer puts the game (default ~/Games/FINAL FANTASY VII)
@@ -74,6 +75,10 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+case $SEVENTH_CHANNEL in
+  ''|stable|latest|canary) ;;
+  *) die "Unknown 7th Heaven version '$SEVENTH_CHANNEL' (use stable or canary)." ;;
+esac
 
 ui_init
 start_log
@@ -154,9 +159,8 @@ select_seventh_heaven
 check_compatdata "$COMPATDATA"
 
 step "Preparing the prefix"
-dotnet_channel=$(seventh_dotnet_channel)
-info "7th Heaven $SEVENTH_TAG needs the .NET Desktop Runtime $dotnet_channel"
-install_dotnet "$COMPATDATA" "$dotnet_channel"
+info "7th Heaven needs the .NET Desktop Runtime $DOTNET_CHANNEL"
+install_dotnet "$COMPATDATA"
 [ "$DRY_RUN" = 1 ] || [ -f "$COMPATDATA/pfx/user.reg" ] || die "The prefix was not created. See $LOG_FILE."
 [ "$SOURCE_KIND" = cd ] && map_cd_drives "$COMPATDATA"
 apply_registry "$COMPATDATA"
@@ -170,7 +174,6 @@ prefix_extras "$COMPATDATA" "$APPID"
 
 step "Installing 7th Heaven"
 install_seventh_heaven "$COMPATDATA"
-check_seventh_dotnet "$COMPATDATA"
 FF7_VERSION=$(ff7_version_for "$APPID" "$GAME_EXE")
 if [ -z "$FF7_VERSION" ]; then
   choose pick "Which release of FF7 is in $GAME_DIR?" "GOG" "Steam (2026 release)"
