@@ -125,7 +125,7 @@ jobs:
           else
             cat >> notes.md <<'EOF'
           Install it in DroidDeck: **Desktop > Add an app > GitHub**, then enter this repository's name.
-          Open the new 7thDroid tile: its menu installs 7th Heaven, then launches, updates or uninstalls it and recreates its shortcuts.
+          Open the new 7thDroid tile: its menu installs 7th Heaven, then launches (with or without Steam), updates or uninstalls it.
           EOF
             # A normal release's notes are its CHANGELOG.md section (checked before the build).
             {

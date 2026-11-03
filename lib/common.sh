@@ -101,37 +101,6 @@ ask_yn() {
   done
 }
 
-# ask_checklist "Question" VAR "Label" 1|0 ... - one window of tick boxes (a y/n question each in a
-# terminal). Each VAR ends up 1 or 0; a VAR already set (by an option) keeps its value and isn't asked.
-ask_checklist() {
-  local question=$1 rows=()
-  shift
-  while [ $# -ge 3 ]; do
-    [ -z "${!1}" ] && rows+=("$1" "$2" "$3")
-    shift 3
-  done
-  [ ${#rows[@]} -gt 0 ] || return 0
-  set -- "${rows[@]}"
-  if [ "$ASSUME_YES" = 1 ]; then
-    while [ $# -ge 3 ]; do
-      printf -v "$1" '%s' "$3"
-      info "$2: $([ "$3" = 1 ] && echo yes || echo no) (--yes)"
-      shift 3
-    done
-    return
-  fi
-  can_ask
-  if [ "$UI_MODE" = zenity ]; then
-    ui_checklist "$question" "$@"
-    return
-  fi
-  info "$question"
-  while [ $# -ge 3 ]; do
-    if ask_yn "$2?" "$([ "$3" = 1 ] && echo y || echo n)"; then printf -v "$1" 1; else printf -v "$1" 0; fi
-    shift 3
-  done
-}
-
 # choose VAR "Question" option... -> VAR gets the 0-based index; the first option is the default.
 choose() {
   local __var=$1 question=$2 i __reply
@@ -192,6 +161,15 @@ download() {
 winpath() {
   local path=$1
   printf 'Z:%s\n' "${path//\//\\}"
+}
+
+# prefix_winpath COMPATDATA PATH - PATH as programs in that prefix see it: C: for its own drive_c.
+prefix_winpath() {
+  local drive=$1/pfx/drive_c path=$2
+  case $path in
+    "$drive"/*) path=${path#"$drive"}; printf 'C:%s\n' "${path//\//\\}" ;;
+    *) winpath "$path" ;;
+  esac
 }
 
 python() { python3 -I "$@"; }

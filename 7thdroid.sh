@@ -1,6 +1,6 @@
 #!/bin/bash
 # 7thDroid: installs the 7th Heaven mod manager for FINAL FANTASY VII on DroidDeck, then offers a menu to
-# launch 7th Heaven, update or repair it, redo its shortcuts, read the log or uninstall it.
+# launch 7th Heaven (with or without Steam), update or repair it, read the log or uninstall it.
 # Run it as: bash 7thdroid.sh   (Android shared storage is mounted noexec)
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -34,11 +34,11 @@ usage() {
 Usage: bash 7thdroid.sh [task] [options]
 
 With no task, 7thDroid shows its menu: Install 7th Heaven until it is installed, then launching,
-updating, shortcuts, the log and uninstalling. A task runs on its own instead:
+updating, the log and uninstalling. A task runs on its own instead:
 
   --install                        Install 7th Heaven, or update or repair it (--yes implies this)
-  --shortcuts-only                 Only (re)create the launcher and shortcuts for the last install
-  --uninstall                      Remove 7th Heaven's prefix, launcher, shortcuts and downloads
+  --steam-shortcut                 Add 7th Heaven's Steam entry, for "Launch 7th Heaven with Steam"
+  --uninstall                      Remove 7th Heaven's prefix, launcher, Steam entry and downloads
 
 Options:
   --version stable|canary          7th Heaven build: the newest release, or the newest development build
@@ -48,9 +48,6 @@ Options:
   --game-dir DIR                   Where a GOG installer puts the game (default ~/Games/FINAL FANTASY VII)
   --copy-game / --no-copy-game     Copy (or don't) an installed game into 7th Heaven's prefix, so the
                                    original is never changed (asked when not given)
-  --app-entry / --no-app-entry     Add (or skip) the DroidDeck app Desktop page entry
-  --steam / --no-steam             Add (or skip) the Steam non-Steam-game shortcut
-  --desktop / --no-desktop         Add (or skip) the KDE menu entry
   --winetricks-dinput              Also run winetricks' dinput verb, when a Proton with protonfixes exists
   --reinstall                      Run every step again, even ones that look done
   --yes                            Accept every default without asking
@@ -61,14 +58,14 @@ EOF
 
 TASK='' ARGS=("$@")
 SEVENTH_CHANNEL='' SOURCES=() GAME_DIR='' REINSTALL=0 WINETRICKS_DINPUT=0
-WANT_APP_ENTRY='' WANT_STEAM='' WANT_DESKTOP='' WANT_GAME_COPY=''
+WANT_GAME_COPY=''
 CD_DISCS=() CD_DRIVES=()
 
-# shellcheck disable=SC2034 # WANT_* are read by name in want_entry and ask_checklist
+# shellcheck disable=SC2034 # WANT_GAME_COPY is read by name in want_entry
 while [ $# -gt 0 ]; do
   case $1 in
     --install) TASK=install ;;
-    --shortcuts-only) TASK=shortcuts ;;
+    --steam-shortcut) TASK=steam-shortcut ;;
     --uninstall) TASK=uninstall ;;
     --version) SEVENTH_CHANNEL=${2:?--version needs a value}; shift ;;
     --version=*) SEVENTH_CHANNEL=${1#*=} ;;
@@ -78,12 +75,6 @@ while [ $# -gt 0 ]; do
     --game-dir=*) GAME_DIR=${1#*=} ;;
     --copy-game) WANT_GAME_COPY=1 ;;
     --no-copy-game) WANT_GAME_COPY=0 ;;
-    --app-entry) WANT_APP_ENTRY=1 ;;
-    --no-app-entry) WANT_APP_ENTRY=0 ;;
-    --steam) WANT_STEAM=1 ;;
-    --no-steam) WANT_STEAM=0 ;;
-    --desktop) WANT_DESKTOP=1 ;;
-    --no-desktop) WANT_DESKTOP=0 ;;
     --winetricks-dinput) WINETRICKS_DINPUT=1 ;;
     --reinstall) REINSTALL=1 ;;
     --yes|-y) ASSUME_YES=1 ;;
@@ -123,12 +114,12 @@ DEDICATED=$(compatdata_for "$PREFIX_ID")
 case $TASK in
   uninstall)
     uninstall && ui_done "7th Heaven is uninstalled. Your FF7 game files were not touched." ;;
-  shortcuts)
+  steam-shortcut)
     load_state || die "No earlier install found ($STATE_FILE). Run the full installer first."
     [ "$COMPATDATA" = "$DEDICATED" ] || die "The last install was made by an older $APP_NAME. Run the full installer once."
     write_launcher "$(seventh_exe "$COMPATDATA")" "$(ff7_steam_appid)"
-    offer_shortcuts
-    ui_done "The 7th Heaven shortcuts are up to date." ;;
+    step "Adding 7th Heaven to Steam"
+    add_steam_shortcut ask || exit 1 ;;
   install)
     run_install ;;
 esac

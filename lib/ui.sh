@@ -54,26 +54,6 @@ ui_warning() {
   zen --question --no-markup --width=700 --text="$1" --ok-label=Continue --cancel-label=Quit || ui_cancelled
 }
 
-# ui_checklist "Question" VAR LABEL DEFAULT... - each VAR is set to 1 if ticked, else 0. Cancelling
-# ticks nothing.
-ui_checklist() {
-  local question=$1 rows=() vars=() i=0 __reply
-  shift
-  while [ $# -ge 3 ]; do
-    [ "$3" = 1 ] && rows+=(TRUE) || rows+=(FALSE)
-    rows+=("$i" "$2")
-    vars+=("$1")
-    i=$((i + 1))
-    shift 3
-  done
-  __reply=$(zen --list --checklist --width=900 --height=$((200 + 60 * i)) --text="$(markup "$question")" \
-    --column=" " --column=n --column="Option" --hide-column=2 --print-column=2 --separator='|' --hide-header "${rows[@]}") \
-    || __reply=''
-  for i in "${!vars[@]}"; do
-    [[ "|$__reply|" == *"|$i|"* ]] && printf -v "${vars[$i]}" 1 || printf -v "${vars[$i]}" 0
-  done
-}
-
 ui_ask() {
   local __var=$1 __reply
   __reply=$(zen --entry --width=700 --text="$(markup "$2")" --entry-text="${3:-}") || ui_cancelled

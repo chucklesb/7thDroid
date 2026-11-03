@@ -1,5 +1,6 @@
 # shellcheck shell=bash
-# Ways to start 7th Heaven: the launcher script itself, the DroidDeck app's Desktop page, Steam and KDE.
+# Starting 7th Heaven: the launcher script 7thDroid's menu runs, and the Steam library entry behind
+# "Launch 7th Heaven with Steam" (Steam copies only). 7thDroid adds no other shortcuts.
 
 LAUNCHER_NAME="7th Heaven"
 LAUNCHER=$DATA_DIR/$LAUNCHER_NAME.sh
@@ -59,69 +60,40 @@ steam_launch_shortcut() {
   "$STEAM_LAUNCH" "$ui" "steam://rungameid/$id"
 }
 
-add_app_entry() {
-  local dir=$APPS_DIR/$APP_ENTRY_ID
-  [ "$HAVE_APPS_DIR" = 1 ] || { warn "$APPS_DIR is missing; skipping the DroidDeck app entry."; return; }
-  info "DroidDeck app: Desktop page entry $dir"
-  [ "$DRY_RUN" = 1 ] && return 0
-  mkdir -p "$dir"
-  ln -sfn "$DATA_DIR" "$dir/files"
-  printf '%s\n' "$LAUNCHER_NAME.sh" > "$dir/entry"
-  printf '%s\n' "$LAUNCHER_NAME" > "$dir/name"
-  printf 'off\n' > "$dir/fex"
-  cp -f "$ASSETS_DIR/7th-heaven.png" "$dir/icon.png"
-}
-
-add_desktop_entry() {
-  local apps=${XDG_DATA_HOME:-$HOME/.local/share}/applications
-  info "KDE menu: $apps/7th-heaven.desktop"
-  [ "$DRY_RUN" = 1 ] && return 0
-  mkdir -p "$apps"
-  cat > "$apps/7th-heaven.desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=$LAUNCHER_NAME
-Comment=Final Fantasy VII mod manager
-Exec=bash "$LAUNCHER"
-Path=$DATA_DIR
-Icon=$ICON
-Categories=Game;
-Terminal=false
-EOF
-  have update-desktop-database && update-desktop-database "$apps" >/dev/null 2>&1 || true
-}
-
+# add_steam_shortcut [ask] - Steam rewrites its shortcuts when it exits, so it has to be closed. With
+# "ask", a running Steam is a question to close it and retry; without, the entry is left for later.
 add_steam_shortcut() {
-  [ "$HAVE_SHORTCUTS_TOOL" = 1 ] || { warn "droiddeck-steam-shortcuts is missing; skipping the Steam shortcut."; return; }
+  [ "$HAVE_SHORTCUTS_TOOL" = 1 ] || { warn "droiddeck-steam-shortcuts is missing; skipping the Steam shortcut."; return 1; }
   while steam_running; do
+    if [ "${1:-}" != ask ]; then
+      info "Steam is running, so 7th Heaven's Steam entry is added the first time you choose \"Launch 7th Heaven with Steam\" in $APP_NAME."
+      return 1
+    fi
     warn "Steam is running. It rewrites its shortcuts when it exits, so it has to be closed first."
     if [ "$ASSUME_YES" = 1 ] || ! ask_yn "Close Steam now, then answer yes to retry (no skips this step)" y; then
-      info "Skipped. Later, with Steam closed, choose \"Add or recreate shortcuts\" in $APP_NAME."
-      return
+      info "Skipped."
+      return 1
     fi
   done
   info "Steam: non-Steam game \"$LAUNCHER_NAME\""
   [ "$DRY_RUN" = 1 ] && return 0
   local id
   id=$(python "$LIB_DIR/steam_shortcut.py" add "$SHORTCUTS_TOOL" "$STEAM_ROOT" "$LAUNCHER_NAME" "$LAUNCHER" "$DATA_DIR" "$ICON") \
-    || { warn "Could not add the Steam shortcut."; return; }
+    || { warn "Could not add the Steam shortcut."; return 1; }
   debug "Steam shortcut id $id"
   info "If Steam starts it with Proton, turn off Properties > Compatibility for \"$LAUNCHER_NAME\": it is a Linux script."
 }
 
-# offer_shortcuts - each entry is optional, asked in one list; flags preset the answer.
-offer_shortcuts() {
-  step "Adding shortcuts"
-  # The 7thDroid AppImage's own tile already launches 7th Heaven, so a second one is opt-in there.
-  local app_default=1
-  [ -n "${SEVENTHDROID_APPIMAGE:-}" ] && app_default=0
-  ask_checklist "Which shortcuts to 7th Heaven should $APP_NAME add?" \
-    WANT_APP_ENTRY "A separate 7th Heaven tile on the DroidDeck app's Desktop page" "$app_default" \
-    WANT_STEAM "7th Heaven in Steam, as a non-Steam game" 1 \
-    WANT_DESKTOP "7th Heaven in the KDE desktop's application menu" 1
-  [ "$WANT_APP_ENTRY" = 1 ] && add_app_entry
-  [ "$WANT_STEAM" = 1 ] && add_steam_shortcut
-  [ "$WANT_DESKTOP" = 1 ] && add_desktop_entry
+# The DroidDeck app tile and KDE menu entry earlier versions added; launching is from the menu now.
+remove_old_entries() {
+  local desktop=${XDG_DATA_HOME:-$HOME/.local/share}/applications/7th-heaven.desktop
+  if [ -f "$APPS_DIR/$APP_ENTRY_ID/entry" ] && [ "$(readlink "$APPS_DIR/$APP_ENTRY_ID/files")" = "$DATA_DIR" ]; then
+    remove_tree "$APPS_DIR/$APP_ENTRY_ID"
+  fi
+  if grep -qsF "$LAUNCHER" "$desktop"; then
+    info "Removing $desktop"
+    run rm -f -- "$desktop"
+  fi
   return 0
 }
 

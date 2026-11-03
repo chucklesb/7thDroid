@@ -28,7 +28,6 @@ DOTNET_FEX=(
 HAVE_INNOEXTRACT=0
 HAVE_7Z=0
 HAVE_SHORTCUTS_TOOL=0
-HAVE_APPS_DIR=0
 
 preflight() {
   local missing=() line
@@ -57,11 +56,9 @@ Update the DroidDeck app, then open $APP_NAME again."
   [ -x "$INNOEXTRACT" ] && HAVE_INNOEXTRACT=1
   [ -x "$MSITOOLS_DIR/7z" ] && HAVE_7Z=1
   [ -f "$SHORTCUTS_TOOL" ] && HAVE_SHORTCUTS_TOOL=1
-  [ -d "$APPS_DIR" ] && [ -w "$APPS_DIR" ] && HAVE_APPS_DIR=1
   if [ "$HAVE_INNOEXTRACT" = 1 ]; then debug "innoextract: $INNOEXTRACT"; else info "innoextract not found: installers will be run instead of unpacked."; fi
   if [ "$HAVE_7Z" = 1 ]; then debug "7z: $MSITOOLS_DIR/7z"; else info "7z not found: CD images (.iso) cannot be unpacked; extracted disc folders still work."; fi
   if [ "$HAVE_SHORTCUTS_TOOL" = 1 ]; then debug "steam shortcuts tool: $SHORTCUTS_TOOL"; else info "droiddeck-steam-shortcuts not found: adding to Steam is unavailable."; fi
-  if [ "$HAVE_APPS_DIR" = 1 ]; then debug "app entries: $APPS_DIR"; else info "$APPS_DIR not found: adding to the DroidDeck app is unavailable."; fi
   ok "DroidDeck helpers found."
 }
 

@@ -1,6 +1,7 @@
 # shellcheck shell=bash
 # Removing what 7thDroid made, and nothing else: its prefix (7th Heaven, its mods and FF7 saves made
-# through it), its launcher, its shortcuts and its downloads. Game files are never touched.
+# through it), its launcher, its Steam entry, the tile and KDE entry earlier versions added, and its
+# downloads. Game files are never touched.
 
 # remove_tree PATH - only paths 7thDroid owns get here; refuse anything that is not one of them.
 remove_tree() {
@@ -26,14 +27,7 @@ uninstall() {
 WARNING: THIS WILL PERMANENTLY DELETE ANY FF7 SAVES IN THE 7TH HEAVEN PREFIX." n \
     || { info "Nothing was removed."; return 1; }
 
-  if [ -f "$APPS_DIR/$APP_ENTRY_ID/entry" ] && [ "$(readlink "$APPS_DIR/$APP_ENTRY_ID/files")" = "$DATA_DIR" ]; then
-    remove_tree "$APPS_DIR/$APP_ENTRY_ID"
-  fi
-  local desktop=${XDG_DATA_HOME:-$HOME/.local/share}/applications/7th-heaven.desktop
-  if grep -qsF "$LAUNCHER" "$desktop"; then
-    info "Removing $desktop"
-    run rm -f -- "$desktop"
-  fi
+  remove_old_entries
   if [ "$HAVE_SHORTCUTS_TOOL" = 1 ]; then
     if steam_running; then
       warn "Steam is running, so its \"$LAUNCHER_NAME\" shortcut was left. Remove it in Steam."
