@@ -2,8 +2,7 @@
 # Getting, installing and configuring 7th Heaven.
 
 SEVENTH_REPO=tsunamods-codes/7th-Heaven
-SEVENTH_PINNED_TAG=4.5.2
-SEVENTH_PINNED_FILE=7thHeaven-v4.5.2.0_Release.exe
+SEVENTH_API=${SEVENTH_API:-https://api.github.com/repos/$SEVENTH_REPO}
 SEVENTH_DIR_WIN='C:\7th Heaven'
 
 # select_seventh_heaven -> SEVENTH_CHANNEL, SEVENTH_TAG, SEVENTH_URL, SEVENTH_FILE
@@ -12,19 +11,16 @@ select_seventh_heaven() {
   if [ -z "$SEVENTH_CHANNEL" ]; then
     local pick
     choose pick "Which 7th Heaven build?" \
-      "Pinned $SEVENTH_PINNED_TAG (tested with $APP_NAME)" \
-      "Latest stable release" \
+      "Stable (newest release)" \
       "Canary (newest development build)"
-    SEVENTH_CHANNEL=$(printf 'pinned\nlatest\ncanary\n' | sed -n "$((pick + 1))p")
+    SEVENTH_CHANNEL=$(printf 'stable\ncanary\n' | sed -n "$((pick + 1))p")
   fi
+  [ "$SEVENTH_CHANNEL" = latest ] && SEVENTH_CHANNEL=stable
   case $SEVENTH_CHANNEL in
-    pinned)
-      SEVENTH_TAG=$SEVENTH_PINNED_TAG SEVENTH_FILE=$SEVENTH_PINNED_FILE
-      SEVENTH_URL=https://github.com/$SEVENTH_REPO/releases/download/$SEVENTH_TAG/$SEVENTH_FILE ;;
-    latest|canary)
+    stable|canary)
       local api line
-      [ "$SEVENTH_CHANNEL" = latest ] && api=releases/latest || api=releases/tags/canary
-      line=$(curl -fsSL --retry 3 -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$SEVENTH_REPO/$api" | python -c '
+      [ "$SEVENTH_CHANNEL" = stable ] && api=releases/latest || api=releases/tags/canary
+      line=$(curl -fsSL --retry 3 -H 'Accept: application/vnd.github+json' "$SEVENTH_API/$api" | python -c '
 import json, re, sys
 release = json.load(sys.stdin)
 exes = [a for a in release.get("assets", []) if a["name"].lower().endswith(".exe")]
@@ -38,55 +34,10 @@ if exes:
       IFS=$'\t' read -r SEVENTH_TAG SEVENTH_FILE SEVENTH_URL stamp <<< "$line"
       # canary keeps its tag and file name across builds; the asset date keeps cached copies apart
       [ "$SEVENTH_CHANNEL" = canary ] && SEVENTH_FILE=canary-$stamp-$SEVENTH_FILE ;;
-    *) die "Unknown 7th Heaven version '$SEVENTH_CHANNEL' (use pinned, latest or canary)." ;;
+    *) die "Unknown 7th Heaven version '$SEVENTH_CHANNEL' (use stable or canary)." ;;
   esac
   ok "7th Heaven $SEVENTH_TAG ($SEVENTH_CHANNEL)"
   SEVENTH_INSTALLER=$(download "$SEVENTH_URL" "$SEVENTH_FILE")
-}
-
-# The .NET Desktop channel each build is known to need. innoextract can't read 7th Heaven's
-# installers (Inno Setup 6.5; DroidDeck's innoextract stops at 6.1), and builds other than the pinned
-# one may change it, so check_seventh_dotnet confirms it from the installed app afterwards.
-SEVENTH_PINNED_DOTNET=9.0
-SEVENTH_CANARY_DOTNET=10.0
-
-# The .NET Desktop channel the chosen build needs, without running its installer -> MAJOR.MINOR
-seventh_dotnet_channel() {
-  local tmp path channel=''
-  if [ "$HAVE_INNOEXTRACT" = 1 ] && [ "$DRY_RUN" != 1 ]; then
-    tmp=$(mktemp -d)
-    path=$("$INNOEXTRACT" -l "$SEVENTH_INSTALLER" 2>/dev/null | grep -io '"[^"]*7th heaven\.runtimeconfig\.json"' | head -n1 | tr -d '"')
-    if [ -n "$path" ] && "$INNOEXTRACT" -s -d "$tmp" -I "$path" "$SEVENTH_INSTALLER" >/dev/null 2>&1; then
-      channel=$(runtimeconfig_channel "$(find "$tmp" -iname '*.runtimeconfig.json' | head -n1)")
-    fi
-    rm -rf -- "$tmp"
-  fi
-  if [ -z "$channel" ]; then
-    case $SEVENTH_CHANNEL in
-      canary) channel=$SEVENTH_CANARY_DOTNET ;;
-      latest) [ "$SEVENTH_TAG" = "$SEVENTH_PINNED_TAG" ] && channel=$SEVENTH_PINNED_DOTNET || channel=$SEVENTH_CANARY_DOTNET ;;
-      *) channel=$SEVENTH_PINNED_DOTNET ;;
-    esac
-    debug "7th Heaven $SEVENTH_TAG: .NET $channel from the known-build table"
-  fi
-  echo "$channel"
-}
-
-# check_seventh_dotnet COMPATDATA - read what the installed 7th Heaven asks for, and install it if it
-# differs from what was installed before it.
-check_seventh_dotnet() {
-  local compatdata=$1 config channel
-  [ "$DRY_RUN" = 1 ] && return 0
-  config=$(find "$compatdata/pfx/drive_c/7th Heaven" -maxdepth 1 -iname '7th heaven.runtimeconfig.json' | head -n1)
-  [ -n "$config" ] || { warn "7th Heaven has no runtimeconfig.json; could not confirm its .NET version."; return 0; }
-  channel=$(runtimeconfig_channel "$config")
-  [ -n "$channel" ] || { warn "Could not read the .NET version from $config."; return 0; }
-  if dotnet_installed "$compatdata" x64 "$channel" && dotnet_installed "$compatdata" x86 "$channel"; then
-    ok "7th Heaven $SEVENTH_TAG runs on .NET Desktop $channel, which is installed."
-    return 0
-  fi
-  info "7th Heaven $SEVENTH_TAG asks for .NET Desktop $channel."
-  install_dotnet "$compatdata" "$channel"
 }
 
 seventh_exe() { printf '%s\n' "$1/pfx/drive_c/7th Heaven/7th Heaven.exe"; }

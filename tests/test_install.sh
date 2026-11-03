@@ -30,14 +30,14 @@ fixture() {
   export DROIDDECK_INNOEXTRACT=$T/none DROIDDECK_MSITOOLS=$T/none
   export DROIDDECK_APPS_DIR=$T/opt/droiddeck-apps
   export DROIDDECK_BIN=$DD_BIN DROIDDECK_PROTON_EXTRA=$REPO/tests/stubs/droiddeck-proton-extra
-  export DOTNET_METADATA=file://$REPO/tests/fixtures/dotnet
-  unset STUB_PROTON_EXTRA_FAIL DROIDDECK_STEAM_SHORTCUTS STUB_7H_DOTNET STUB_INNO_LAYOUT
+  export SEVENTH_API=file://$REPO/tests/fixtures/7th-heaven
+  unset STUB_PROTON_EXTRA_FAIL DROIDDECK_STEAM_SHORTCUTS STUB_INNO_LAYOUT
   mkdir -p "$STEAM_ROOT/steamapps" "$DROIDDECK_APPS_DIR" "$STEAM_ROOT/config" "$STEAM_ROOT/userdata/12345/config"
   cp "$REPO/tests/fixtures/config.vdf" "$STEAM_ROOT/config/config.vdf"
   printf '"users"\n{\n\t"76561197960278073"\n\t{\n\t\t"MostRecent"\t"1"\n\t}\n}\n' > "$STEAM_ROOT/config/loginusers.vdf"
   # cached downloads, so no test touches the network
   mkdir -p "$XDG_CACHE_HOME/7thdroid"
-  for f in 7thHeaven-v4.5.2.0_Release.exe windowsdesktop-runtime-{9.0.22,10.0.14}-win-{x64,x86}.exe; do
+  for f in 7thHeaven-v4.6.0.0_Release.exe canary-202611011640-7thHeaven-v4.6.0.1_Release.exe windowsdesktop-runtime-10.0-win-{x64,x86}.exe; do
     echo stub > "$XDG_CACHE_HOME/7thdroid/$f"
   done
   : > "$STUB_LOG"
@@ -75,7 +75,7 @@ steam_game() { # LIBRARY APPID INSTALLDIR EXE
   printf '"AppState"\n{\n\t"appid"\t\t"%s"\n\t"StateFlags"\t\t"4"\n\t"installdir"\t\t"%s"\n}\n' "$2" "$3" > "$1/steamapps/appmanifest_$2.acf"
 }
 
-installer() { bash "$REPO/install.sh" --yes --version pinned "$@" > "$T/out.log" 2>&1; }
+installer() { bash "$REPO/install.sh" --yes --version stable "$@" > "$T/out.log" 2>&1; }
 settings() { cat "$1/pfx/drive_c/7th Heaven/7thWorkshop/settings.xml"; }
 
 echo "Steam 2026 release in a second library"
@@ -87,14 +87,13 @@ before=$(other_prefixes)
 check "installer succeeds" installer --no-steam
 CD=$(own_prefix)
 check "Steam's FF7 prefix untouched" test "$(other_prefixes)" = "$before"
-check "installers ran in 7thDroid's own prefix" grep -q $'run\t'"${CD##*/}"$'\t7thHeaven-v4.5.2.0_Release.exe\t0' "$STUB_LOG"
+check "installers ran in 7thDroid's own prefix" grep -q $'run\t'"${CD##*/}"$'\t7thHeaven-v4.6.0.0_Release.exe\t0' "$STUB_LOG"
 check "nothing ran in another prefix" bash -c "! cut -f2 '$STUB_LOG' | grep -vqx '${CD##*/}'"
 check "installers ran with full x87 precision" bash -c "! cut -f4 '$STUB_LOG' | grep -vqx 0"
 check "DroidDeck-Proton pinned to the prefix" grep -q "${CD##*/}" "$T/.local/share/droiddeck-compat/games.json"
-check ".NET 9 x64 for the pinned build (ARM64 layout)" test -d "$CD/pfx/drive_c/Program Files/dotnet/x64/shared/Microsoft.WindowsDesktop.App/9.0.22"
-check ".NET 9 x86 for the pinned build" test -d "$CD/pfx/drive_c/Program Files (x86)/dotnet/shared/Microsoft.WindowsDesktop.App/9.0.22"
-check "no .NET 10" test ! -e "$CD/pfx/drive_c/Program Files/dotnet/x64/shared/Microsoft.WindowsDesktop.App/10.0.14"
-check ".NET installed before 7th Heaven" bash -c "grep -n . '$STUB_LOG' | grep -m1 -q '^1:.*windowsdesktop-runtime-9.0.22-win-x64'"
+check ".NET 10 x64 (ARM64 layout)" test -d "$CD/pfx/drive_c/Program Files/dotnet/x64/shared/Microsoft.WindowsDesktop.App/10.0.14"
+check ".NET 10 x86" test -d "$CD/pfx/drive_c/Program Files (x86)/dotnet/shared/Microsoft.WindowsDesktop.App/10.0.14"
+check ".NET installed before 7th Heaven" bash -c "grep -n . '$STUB_LOG' | grep -m1 -q '^1:.*windowsdesktop-runtime-10.0-win-x64'"
 check "Avalon.Graphics in user.reg" grep -q '"DisableHWAcceleration"=dword:00000001' "$CD/pfx/user.reg"
 check "dinput override in user.reg" grep -q '"dinput"="native,builtin"' "$CD/pfx/user.reg"
 check "FF7Exe is the game's FFVII.exe" grep -qF "<FF7Exe>Z:${T//\//\\}\\sd\\steamapps\\common\\FINAL FANTASY VII\\FFVII.exe</FF7Exe>" <(settings "$CD")
@@ -104,7 +103,7 @@ check "launcher runs the prefix's 7th Heaven" grep -qF "$CD/pfx/drive_c/7th\\ He
 check "launcher reports FF7's Steam app id" grep -qFe "--options 'SteamAppId=3837340 %command%'" "$T/.local/share/7thdroid/7th Heaven.sh"
 check "app entry" test "$(cat "$T/opt/droiddeck-apps/7thheaven/entry")" = "7th Heaven.sh"
 check "KDE entry" test -f "$T/.local/share/applications/7th-heaven.desktop"
-check "second run skips finished steps" bash -c "cp '$STUB_LOG' '$T/first.log'; bash '$REPO/install.sh' --yes --version pinned --no-steam >/dev/null 2>&1 && cmp -s '$STUB_LOG' '$T/first.log'"
+check "second run skips finished steps" bash -c "cp '$STUB_LOG' '$T/first.log'; bash '$REPO/install.sh' --yes --version stable --no-steam >/dev/null 2>&1 && cmp -s '$STUB_LOG' '$T/first.log'"
 cleanup
 
 echo "Steam 2013 release, launch entries declined"
@@ -132,7 +131,7 @@ check "installer succeeds" installer --no-steam
 check "detected as Heroic Flatpak" grep -q "GOG via Heroic (Flatpak)" "$T/out.log"
 ID=$(python3 "$REPO/lib/steam_shortcut.py" appid "$T/.local/share/7thdroid/7th Heaven.sh" "7th Heaven")
 check "dedicated prefix named after the shortcut id" test -f "$STEAM_ROOT/steamapps/compatdata/$ID/pfx/drive_c/7th Heaven/7th Heaven.exe"
-check "first run used --prefix" grep -q $'run\t'"$ID"$'\twindowsdesktop-runtime-9.0.22-win-x64.exe' "$STUB_LOG"
+check "first run used --prefix" grep -q $'run\t'"$ID"$'\twindowsdesktop-runtime-10.0-win-x64.exe' "$STUB_LOG"
 check "version GOG" grep -q '<FF7InstalledVersion>GOG</FF7InstalledVersion>' <(settings "$STEAM_ROOT/steamapps/compatdata/$ID")
 check "no Steam app id for GOG" bash -c "! grep -q SteamAppId '$T/.local/share/7thdroid/7th Heaven.sh'"
 check "drive label" test "$(cat "$STEAM_ROOT/steamapps/compatdata/$ID/pfx/drive_c/.windows-label")" = FF7DISC1
@@ -200,7 +199,7 @@ cleanup
 
 echo ".NET in the x64-native layout is recognised"
 fixture
-mkdir -p "$T/FF7" "$(own_prefix)/pfx/drive_c/Program Files/dotnet/shared/Microsoft.WindowsDesktop.App/9.0.5"
+mkdir -p "$T/FF7" "$(own_prefix)/pfx/drive_c/Program Files/dotnet/shared/Microsoft.WindowsDesktop.App/10.0.5"
 touch "$T/FF7/FFVII.exe"
 check "installer succeeds" installer --no-steam --source "$T/FF7"
 check "the x64 runtime was not installed again" bash -c "! grep -q 'win-x64' '$STUB_LOG'"
@@ -254,7 +253,7 @@ echo "DroidDeck-Proton missing: install fails"
 fixture no-proton
 steam_game "$STEAM_ROOT" 39140 "FINAL FANTASY VII" ff7_en.exe
 export STUB_PROTON_EXTRA_FAIL=1
-check "stops" bash -c "! bash '$REPO/install.sh' --yes --version pinned --no-steam >'$T/out.log' 2>&1"
+check "stops" bash -c "! bash '$REPO/install.sh' --yes --version stable --no-steam >'$T/out.log' 2>&1"
 check "explains how to install it" grep -q 'droiddeck-proton-extra .* droiddeck' "$T/out.log"
 check "no prefix made" test ! -e "$(own_prefix)"
 cleanup
@@ -284,22 +283,20 @@ check "says the old prefix is left alone" grep -qF "older 7thDroid installed 7th
 check "old prefix untouched" test "$(other_prefixes)" = "$before"
 cleanup
 
-echo "Installed 7th Heaven asks for another .NET than expected"
+echo "7th Heaven canary build"
 fixture
-export STUB_7H_DOTNET=10.0.1
-check "installer succeeds" installer --no-steam --source "$REPO/tests/fixtures/game"
+check "installer succeeds" bash -c "bash '$REPO/install.sh' --yes --version canary --no-steam --source '$REPO/tests/fixtures/game' > '$T/out.log' 2>&1"
 CD=$(own_prefix)
-check "says what 7th Heaven asks for" grep -q "asks for .NET Desktop 10.0" "$T/out.log"
-check ".NET 10 installed afterwards" test -d "$CD/pfx/drive_c/Program Files (x86)/dotnet/shared/Microsoft.WindowsDesktop.App/10.0.14"
-check "newest stable patch, not the release candidate" bash -c "! grep -q 10.0.15 '$STUB_LOG'"
+check "the canary asset, kept apart by its date" grep -q $'\tcanary-202611011640-7thHeaven-v4.6.0.1_Release.exe\t' "$STUB_LOG"
+check "update channels set to Canary" grep -q '<AppUpdateChannel>Canary</AppUpdateChannel>' <(settings "$CD")
+check ".NET 10 installed" test -d "$CD/pfx/drive_c/Program Files (x86)/dotnet/shared/Microsoft.WindowsDesktop.App/10.0.14"
 cleanup
 
-echo ".NET release metadata unreachable"
+echo "The retired pinned build"
 fixture
-export DOTNET_METADATA=file:///nonexistent
-check "installer succeeds" installer --no-steam --source "$REPO/tests/fixtures/game"
-check "falls back to the known .NET 9 patch" grep -q "windowsdesktop-runtime-9.0.22-win-x64.exe" "$STUB_LOG"
-check "7th Heaven confirmed on .NET 9" grep -q "runs on .NET Desktop 9.0, which is installed" "$T/out.log"
+check "is refused" bash -c "! bash '$REPO/install.sh' --yes --version pinned --no-steam --source '$REPO/tests/fixtures/game' > '$T/out.log' 2>&1"
+check "names the builds offered" grep -q "use stable or canary" "$T/out.log"
+check "no prefix made" test ! -e "$(own_prefix)"
 cleanup
 
 # windowed SCRIPT ANSWER... -> runs SCRIPT (with ARGS) as the AppImage does: no terminal, the zenity stub
@@ -323,7 +320,7 @@ heroic_game() {
 echo "Windows instead of a terminal (AppImage), then its menu"
 fixture
 heroic_game
-ARGS=(--version pinned)
+ARGS=(--version stable)
 check "installer succeeds" windowed install.sh 0 yes cancel yes
 CD=$(own_prefix)
 check "copies offered in a list" grep -q '^list .*--radiolist' "$T/zenity.log"
@@ -355,7 +352,7 @@ echo "Windows: picking a GOG installer"
 fixture
 mkdir -p "$T/Download"
 echo stub > "$T/Download/setup_final_fantasy_vii_2.0_(gog).exe"
-ARGS=(--version pinned --no-app-entry --no-steam --no-desktop)
+ARGS=(--version stable --no-app-entry --no-steam --no-desktop)
 check "installer succeeds" windowed install.sh 1 "$T/Download/setup_final_fantasy_vii_2.0_(gog).exe" "$T/Games/FF7"
 check "file picker filtered to installers" grep -q '^file-selection .*--file-filter=GOG\\ installer' "$T/zenity.log"
 check "game installed where chosen" test -f "$T/Games/FF7/FFVII.exe"
@@ -364,7 +361,7 @@ cleanup
 echo "Windows: cancelling"
 fixture
 heroic_game
-ARGS=(--version pinned)
+ARGS=(--version stable)
 windowed install.sh cancel
 check "cancel stops the installer" test $? -eq 130
 check "no prefix made" test ! -e "$(own_prefix)"
@@ -374,14 +371,14 @@ echo "Typed answers: a path to an installed game"
 fixture
 mkdir -p "$T/My FF7"
 touch "$T/My FF7/FFVII.exe" "$T/My FF7/goggame-1698970154.info"
-check "installer succeeds" bash -c "printf '%s\n' \"'$T/My FF7'\" | UI_MODE=tty timeout 300 bash '$REPO/install.sh' --version pinned --no-app-entry --no-steam --no-desktop > '$T/out.log' 2>&1"
+check "installer succeeds" bash -c "printf '%s\n' \"'$T/My FF7'\" | UI_MODE=tty timeout 300 bash '$REPO/install.sh' --version stable --no-app-entry --no-steam --no-desktop > '$T/out.log' 2>&1"
 check "uses the typed folder" grep -qF "Game: $T/My FF7/FFVII.exe" "$T/out.log"
 cleanup
 
 echo "No terminal and no windows"
 fixture
 heroic_game
-check "refuses instead of taking defaults" bash -c "! bash '$REPO/install.sh' --version pinned < /dev/null > '$T/out.log' 2>&1"
+check "refuses instead of taking defaults" bash -c "! bash '$REPO/install.sh' --version stable < /dev/null > '$T/out.log' 2>&1"
 check "says why" grep -q "no terminal or window to ask in" "$T/out.log"
 check "no prefix made" test ! -e "$(own_prefix)"
 cleanup
@@ -392,7 +389,7 @@ mkdir -p "$T/ddbin"
 cp "$DD_BIN"/* "$T/ddbin/" 2>/dev/null
 sed -i 's/^def build_key(/def _old_build_key(/' "$T/ddbin/steam-compatibility"
 export DROIDDECK_BIN=$T/ddbin DROIDDECK_PROTON_EXTRA=$T/must-not-run
-check "stops" bash -c "! bash '$REPO/install.sh' --yes --version pinned --no-steam >'$T/out.log' 2>&1"
+check "stops" bash -c "! bash '$REPO/install.sh' --yes --version stable --no-steam >'$T/out.log' 2>&1"
 check "asks for DroidDeck 0.6.7 or newer" grep -q "needs DroidDeck 0.6.7 or newer" "$T/out.log"
 check "the missing piece is in the log" grep -q "steam-compatibility: build_key" "$T/.local/state/7thdroid/install.log"
 check "nothing downloaded or made" test ! -e "$(own_prefix)"

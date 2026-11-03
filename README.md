@@ -31,11 +31,11 @@ Valve's ARM64 Proton and FEX.
    - The game files stay where they are; 7th Heaven reaches them through Wine's `Z:` drive, which is the whole Linux file system.
    - No other prefix is touched, including the one Steam made for FF7, so vanilla FF7 from Steam keeps working as before.
    - If DroidDeck-Proton isn't your default Proton, 7thDroid sets it for its own prefix only, the same way picking a game's Proton in the DroidDeck app does.
-   - It installs the .NET Desktop Runtime that 7th Heaven needs, both x64 and x86: .NET 9 for the pinned 4.5.2, .NET 10 for current canary builds. After 7th Heaven is installed, it reads the version the app itself asks for and installs that too if it differs.
+   - It installs the .NET 10 Desktop Runtime that 7th Heaven needs, both x64 and x86, in their newest patch.
    - It turns off WinForms/WPF hardware acceleration, because 7th Heaven's controls vanish without that.
    - It makes Wine prefer 7th Heaven's `dinput.dll`. Without that, mods silently don't load.
 3. **Installs 7th Heaven** silently into `C:\7th Heaven` in that prefix, then points it at your game.
-   - You choose the build: the pinned version, the latest stable release, or the canary build.
+   - You choose the build: the newest stable release, or the canary (development) build.
 4. **Adds shortcuts, if you want them:**
    - the DroidDeck app's Desktop page;
    - Steam, as a non-Steam game;
@@ -103,7 +103,7 @@ AppImage instead.
 
 | Option | |
 |---|---|
-| `--version pinned\|latest\|canary` | The 7th Heaven build. If you leave it out, the script asks. |
+| `--version stable\|canary` | The 7th Heaven build. If you leave it out, the script asks. |
 | `--source PATH` | Use this game instead of searching. Repeat it once per disc. |
 | `--game-dir DIR` | Where a GOG installer puts the game (default `~/Games/FINAL FANTASY VII`). |
 | `--app-entry`, `--steam`, `--desktop` (and `--no-…`) | Add or skip each shortcut without asking. |
@@ -153,7 +153,10 @@ tags, run the workflow by hand on `master` instead (**Actions > Release > Run wo
 same and creates the tag `v<VERSION>` itself.
 
 For a testing pre-release, set `VERSION` on a branch to a SemVer pre-release (for example `0.2.0-beta.1`)
-and run the workflow by hand on that branch. It publishes a pre-release, which DroidDeck's **Add an
+and run the workflow by hand on that branch. To test several feature or fix branches together, build
+them on a `canary` branch: start it from `master`, merge each branch in, and commit the pre-release
+`VERSION` on top, so the feature branches themselves never carry it. For the next beta, rebuild
+`canary` the same way and raise the number. It publishes a pre-release, which DroidDeck's **Add an
 app > GitHub** passes over while a normal release is among the 15 newest. Install it by downloading the
 AppImage and adding it with **Desktop > Add an app > AppImage**. Delete old pre-releases once the normal
 release is out. `master` only publishes normal releases.
