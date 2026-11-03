@@ -86,6 +86,43 @@ class ShortcutIdTest(unittest.TestCase):
         # droiddeck-proton-run names a program after its file name without extension
         self.assertEqual(ours(exe, "7th Heaven"), theirs(exe))
 
+    @unittest.skipUnless(os.path.isfile(os.path.join(BIN, "droiddeck-proton-run")), "DROIDDECK_SRC not set")
+    def test_gameid_is_the_steam_game_id_droiddeck_gives_the_prefix(self):
+        ours = runpy.run_path(os.path.join(LIB, "steam_shortcut.py"))
+        run = runpy.run_path(os.path.join(BIN, "droiddeck-proton-run"))
+        exe = "/root/.local/share/7thdroid/7th Heaven.sh"
+        number = ours["appid"](exe, "7th Heaven")
+        with tempfile.TemporaryDirectory() as root:
+            target = run["Target"](number, os.path.join(root, "compatdata", str(number)), root, root, "fixed")
+            env = run["environment"]({}, target, root, root)
+        self.assertEqual(env["SteamGameId"], str(ours["gameid"](exe, "7th Heaven")))
+        self.assertEqual(env["SteamAppId"], "0")
+
+    @unittest.skipUnless(os.path.isfile(os.path.join(BIN, "droiddeck-proton-run")), "DROIDDECK_SRC not set")
+    def test_launcher_options_set_only_the_app_id(self):
+        run = runpy.run_path(os.path.join(BIN, "droiddeck-proton-run"))
+        self.assertEqual(run["split_options"]("SteamAppId=39140 %command%"), ({"SteamAppId": "39140"}, []))
+
+
+class ShortcutFileTest(unittest.TestCase):
+    @unittest.skipUnless(os.path.isfile(os.path.join(BIN, "droiddeck-steam-shortcuts")), "DROIDDECK_SRC not set")
+    def test_has_follows_add_and_remove(self):
+        tool = os.path.join(BIN, "droiddeck-steam-shortcuts")
+        script = os.path.join(LIB, "steam_shortcut.py")
+        exe = "/root/.local/share/7thdroid/7th Heaven.sh"
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, "userdata", "12345", "config"))
+
+            def call(*args):
+                return subprocess.run([sys.executable, script] + list(args), capture_output=True).returncode
+
+            self.assertEqual(call("has", tool, root, exe), 1)
+            self.assertEqual(call("add", tool, root, "7th Heaven", exe, os.path.dirname(exe)), 0)
+            self.assertEqual(call("has", tool, root, exe), 0)
+            self.assertEqual(call("has", tool, root, "/somewhere/else.sh"), 1)
+            self.assertEqual(call("remove", tool, root, exe), 0)
+            self.assertEqual(call("has", tool, root, exe), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
