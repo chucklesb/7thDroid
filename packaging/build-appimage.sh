@@ -63,7 +63,8 @@ cp dist/"$OUTNAME" /tmp/check/
 (
   cd /tmp/check
   ./"$OUTNAME" --appimage-extract >/dev/null
-  if [ -d squashfs-root ]; then root=$PWD/squashfs-root; else root=$PWD/AppDir; fi
+  # squashfs-root can be a link to the unpacked folder; DroidDeck resolves it the same way.
+  if [ -d squashfs-root ]; then root=$(readlink -f squashfs-root); else root=$PWD/AppDir; fi
   head -n 1 "$root/AppRun" | grep -qx '#!/bin/bash'
   # The tile's name and icon, found the way DroidDeck finds them.
   grep -qx "Name=$APP_TITLE" "$root"/*.desktop || { echo "the AppImage is not named $APP_TITLE" >&2; exit 1; }
