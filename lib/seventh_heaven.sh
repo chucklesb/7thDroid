@@ -49,7 +49,7 @@ install_seventh_heaven() {
      && ! ask_yn "7th Heaven is already installed in this prefix. Run its installer again (update or repair)?" n; then
     return 0
   fi
-  info "Installing 7th Heaven to $SEVENTH_DIR_WIN. If 7th Heaven opens when it finishes, close it to continue."
+  info "Installing 7th Heaven to $SEVENTH_DIR_WIN."
   fex_run "$compatdata" "$SEVENTH_INSTALLER" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- \
     /DIR="$SEVENTH_DIR_WIN" /LOG="C:\\$APP_ID-7thHeaven-install.log" || warn "The 7th Heaven installer reported an error."
   [ "$DRY_RUN" = 1 ] || [ -f "$exe" ] \

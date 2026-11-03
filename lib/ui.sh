@@ -27,18 +27,51 @@ zen() {
   "$UI_ZENITY" --title="$APP_NAME" "$@" 2>/dev/null
 }
 
+# zenity reads backslash escapes (g_strcompress) in markup text and progress lines, so C:\7th Heaven
+# would show \7 as a control character. --no-markup message windows take their text as it is.
+zen_text() {
+  printf '%s' "${1//\\/\\\\}"
+}
+
 # zenity reads --text as Pango markup; paths with & or < must not be taken for it.
 markup() {
-  local text=${1//&/&amp;}
+  local text
+  text=$(zen_text "$1")
+  text=${text//&/&amp;}
   text=${text//</&lt;}
   printf '%s' "${text//>/&gt;}"
 }
 
-# A cancelled window ends the run; nothing is half-asked.
+# A cancelled window ends the run; nothing is half-asked. Closing the menu is not an error.
+UI_CANCEL_STATUS=130
 ui_cancelled() {
   ui_progress_stop
   printf '\n%s\n' "Cancelled." >&2
-  exit 130
+  exit "$UI_CANCEL_STATUS"
+}
+
+ui_warning() {
+  zen --question --no-markup --width=700 --text="$1" --ok-label=Continue --cancel-label=Quit || ui_cancelled
+}
+
+# ui_checklist "Question" VAR LABEL DEFAULT... - each VAR is set to 1 if ticked, else 0. Cancelling
+# ticks nothing.
+ui_checklist() {
+  local question=$1 rows=() vars=() i=0 __reply
+  shift
+  while [ $# -ge 3 ]; do
+    [ "$3" = 1 ] && rows+=(TRUE) || rows+=(FALSE)
+    rows+=("$i" "$2")
+    vars+=("$1")
+    i=$((i + 1))
+    shift 3
+  done
+  __reply=$(zen --list --checklist --width=900 --height=$((200 + 60 * i)) --text="$(markup "$question")" \
+    --column=" " --column=n --column="Option" --hide-column=2 --print-column=2 --separator='|' --hide-header "${rows[@]}") \
+    || __reply=''
+  for i in "${!vars[@]}"; do
+    [[ "|$__reply|" == *"|$i|"* ]] && printf -v "${vars[$i]}" 1 || printf -v "${vars[$i]}" 0
+  done
 }
 
 ui_ask() {
@@ -99,7 +132,7 @@ ui_progress_start() {
 
 ui_progress() {
   [ -n "$UI_PROGRESS_FD" ] || return 0
-  printf '# %s\n' "${*//$'\n'/ }" >&"$UI_PROGRESS_FD" 2>/dev/null || true
+  printf '# %s\n' "$(zen_text "${*//$'\n'/ }")" >&"$UI_PROGRESS_FD" 2>/dev/null || true
 }
 
 ui_progress_stop() {

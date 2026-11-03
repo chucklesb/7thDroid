@@ -1,0 +1,3 @@
+THIS SOFTWARE IS EXPERIMENTAL. It is provided "as is", without warranty of any kind, express or implied. The authors and contributors accept no liability for any damage, data loss, lost saves or other problems arising from its use. It changes files on your device, downloads and runs third-party software (7th Heaven, .NET, DroidDeck-Proton), and has had very little testing. Back up anything you care about first, and use it at your own risk. See the license for the full terms.
+
+7thDroid is not affiliated with or endorsed by Square Enix, Valve, GOG, the Tsunamods / 7th Heaven team or the DroidDeck project.

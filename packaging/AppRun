@@ -3,4 +3,4 @@
 # hooks (7thdroid-zenity), so Proton, Python and the rest of DroidDeck see their usual environment.
 APPDIR=${APPDIR:-$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")}
 export UI_ZENITY=$APPDIR/7thdroid-zenity SEVENTHDROID_APPIMAGE=1
-exec bash "$APPDIR/share/7thdroid/menu.sh" "$@"
+exec bash "$APPDIR/share/7thdroid/7thdroid.sh" "$@"

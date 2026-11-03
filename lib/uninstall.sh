@@ -21,7 +21,9 @@ uninstall() {
   if load_state 2>/dev/null && [ -n "${COMPATDATA:-}" ] && [ "$COMPATDATA" != "$prefix" ]; then
     info "An older $APP_NAME installed into $COMPATDATA. That prefix is not removed; delete it yourself if you no longer need it."
   fi
-  ask_yn "Remove 7th Heaven, its mods, and the FF7 saves made through it? Your FF7 game files are not touched." n \
+  ask_yn "Remove 7th Heaven, its mods, and any game saves made with it?
+
+WARNING: THIS WILL PERMANENTLY DELETE ANY FF7 SAVES IN THE 7TH HEAVEN PREFIX." n \
     || { info "Nothing was removed."; return 1; }
 
   if [ -f "$APPS_DIR/$APP_ENTRY_ID/entry" ] && [ "$(readlink "$APPS_DIR/$APP_ENTRY_ID/files")" = "$DATA_DIR" ]; then

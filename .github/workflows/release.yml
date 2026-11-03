@@ -7,6 +7,8 @@ name: Release
 # it publishes a pre-release for testing instead, built as "7thDroid Canary" with a red icon so its
 # DroidDeck tile is told apart from the release's. DroidDeck's GitHub install passes over pre-releases
 # while a normal release is among the 15 newest, so delete old pre-releases after each release.
+# A normal release's notes are its "## [X.Y.Z]" section of CHANGELOG.md, which must exist; a
+# pre-release lists the commits since the last normal release.
 # A pull request only tests and builds; its AppImage is kept as the run's artifact.
 on:
   push:
@@ -28,7 +30,7 @@ jobs:
           path: droiddeck
           sparse-checkout: tools/linuxfs/overlay/usr/local/bin
       - name: Lint
-        run: shellcheck -x install.sh menu.sh packaging/AppRun tests/test_install.sh tests/stubs/droiddeck-proton-run tests/stubs/zenity tests/stubs/innoextract && shellcheck -s sh packaging/build-appimage.sh packaging/zenity
+        run: shellcheck -x 7thdroid.sh packaging/AppRun tests/test_install.sh tests/stubs/droiddeck-proton-run tests/stubs/zenity tests/stubs/innoextract && shellcheck -s sh packaging/build-appimage.sh packaging/zenity
       - name: Unit tests
         run: DROIDDECK_SRC=$PWD/droiddeck python3 -m unittest discover -s tests
       - name: Installer tests
@@ -59,6 +61,11 @@ jobs:
           elif [ "$EVENT" = workflow_dispatch ]; then
             [ "$prerelease" = true ] || { echo "A branch publishes pre-releases; set VERSION to $version-beta.1 or similar." >&2; exit 1; }
           fi
+          # A normal release's notes are its CHANGELOG.md section.
+          if [ "$prerelease" = false ] && { [ "$GITHUB_REF_TYPE" = tag ] || [ "$EVENT" = workflow_dispatch ]; }; then
+            grep -qF "## [$version]" CHANGELOG.md 2>/dev/null \
+              || { echo "CHANGELOG.md has no '## [$version]' section for this release." >&2; exit 1; }
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
       - uses: pkgforge-dev/anylinux-setup-action@0964f2258d6c93d1391359978dde081fd8b3c6af # v2
@@ -78,6 +85,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      # The whole history and its tags, for the release notes.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: AppImage-aarch64
@@ -105,11 +116,22 @@ jobs:
           To try it, download the AppImage below and add it in DroidDeck with **Desktop > Add an app > AppImage**.
           It installs as a separate **7thDroid Canary** tile with a red icon. It shares 7th Heaven's install, settings and log with the 7thDroid tile.
           EOF
+            # A pre-release lists the commits since the last normal release, without merges and VERSION bumps.
+            base=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-*' HEAD 2>/dev/null || true)
+            {
+              printf '\n## Changes%s\n\n' "${base:+ since $base}"
+              git log --no-merges --format='- %s' ${base:+"$base..HEAD"} | grep -v '^- Version ' || true
+            } >> notes.md
           else
             cat >> notes.md <<'EOF'
           Install it in DroidDeck: **Desktop > Add an app > GitHub**, then enter this repository's name.
-          Open the new 7thDroid tile to install 7th Heaven; open it again to launch 7th Heaven, update it, redo its shortcuts or uninstall it.
+          Open the new 7thDroid tile: its menu installs 7th Heaven, then launches, updates or uninstalls it and recreates its shortcuts.
           EOF
+            # A normal release's notes are its CHANGELOG.md section (checked before the build).
+            {
+              printf '\n'
+              awk -v head="## [$VERSION]" 'index($0, head) == 1 { found = 1 } found && /^## \[/ && index($0, head) != 1 { exit } found' CHANGELOG.md
+            } >> notes.md
           fi
           gh release create "$tag" dist/*.AppImage --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "7thDroid $tag" --notes-file notes.md "${extra[@]}"

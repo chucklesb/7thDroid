@@ -225,3 +225,39 @@ install_pending_game() {
   GAME_DIR=${GAME_EXE%/*}
   ok "FINAL FANTASY VII installed at $GAME_DIR"
 }
+
+# offer_game_copy COMPATDATA - 7th Heaven writes into the game folder (its patched exe, workingdir).
+# A copy inside its prefix keeps the original untouched; GAME_DIR and GAME_EXE then point at the copy.
+offer_game_copy() {
+  local compatdata=$1 dest need free size
+  dest="$compatdata/pfx/drive_c/FINAL FANTASY VII"
+  case $GAME_DIR in "$compatdata"/*) return 0 ;; esac
+  if [ -n "$(find_game_exe "$dest" 2>/dev/null)" ]; then
+    want_entry WANT_GAME_COPY "7th Heaven's prefix already has a copy of FINAL FANTASY VII. Keep using that copy, so the original game files are never changed?" \
+      || return 0
+    info "Using the copy of the game already in 7th Heaven's prefix."
+  else
+    need=$(du -sk "$GAME_DIR" 2>/dev/null | cut -f1)
+    size=$(awk -v k="${need:-0}" 'BEGIN { printf "%.1f", k / 1048576 }')
+    want_entry WANT_GAME_COPY "Copy FINAL FANTASY VII ($size GB) into 7th Heaven's prefix, so 7th Heaven never changes the original game files?" \
+      || return 0
+    free=$(df -Pk "$compatdata" 2>/dev/null | awk 'NR == 2 { print $4 }')
+    if [ -n "$free" ] && [ "$free" -lt $((${need:-0} + 512 * 1024)) ]; then
+      warn "There isn't room for a $size GB copy next to 7th Heaven's prefix."
+      ask_yn "Use the original game files instead?" y || die "Not enough space to copy the game. Free some space and try again."
+      return 0
+    fi
+    info "Copying the game ($size GB) to $dest. This takes a few minutes."
+    if [ "$DRY_RUN" != 1 ]; then
+      rm -rf -- "$dest.part"
+      mkdir -p "$dest.part"
+      cp -a -- "$GAME_DIR/." "$dest.part/" || { rm -rf -- "$dest.part"; die "Copying the game to $dest failed."; }
+      rm -rf -- "$dest"
+      mv -- "$dest.part" "$dest" || die "Could not move the copied game to $dest."
+    fi
+    ok "Copied the game into 7th Heaven's prefix."
+  fi
+  GAME_EXE=$dest/${GAME_EXE#"$GAME_DIR"/}
+  GAME_DIR=$dest
+  GAME_COPY=1
+}

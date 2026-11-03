@@ -96,7 +96,7 @@ add_steam_shortcut() {
   while steam_running; do
     warn "Steam is running. It rewrites its shortcuts when it exits, so it has to be closed first."
     if [ "$ASSUME_YES" = 1 ] || ! ask_yn "Close Steam now, then answer yes to retry (no skips this step)" y; then
-      info "Skipped. Later, with Steam closed, run: bash install.sh --shortcuts-only"
+      info "Skipped. Later, with Steam closed, choose \"Add or recreate shortcuts\" in $APP_NAME."
       return
     fi
   done
@@ -109,15 +109,19 @@ add_steam_shortcut() {
   info "If Steam starts it with Proton, turn off Properties > Compatibility for \"$LAUNCHER_NAME\": it is a Linux script."
 }
 
-# offer_shortcuts - each entry is optional; flags preset the answer.
+# offer_shortcuts - each entry is optional, asked in one list; flags preset the answer.
 offer_shortcuts() {
   step "Adding shortcuts"
   # The 7thDroid AppImage's own tile already launches 7th Heaven, so a second one is opt-in there.
-  local app_default=y
-  [ -n "${SEVENTHDROID_APPIMAGE:-}" ] && app_default=n
-  want_entry WANT_APP_ENTRY "Also add a separate 7th Heaven tile to the DroidDeck app's Desktop page?" "$app_default" && add_app_entry
-  want_entry WANT_STEAM "Add 7th Heaven to Steam as a non-Steam game?" && add_steam_shortcut
-  want_entry WANT_DESKTOP "Add 7th Heaven to the KDE desktop's application menu?" && add_desktop_entry
+  local app_default=1
+  [ -n "${SEVENTHDROID_APPIMAGE:-}" ] && app_default=0
+  ask_checklist "Which shortcuts to 7th Heaven should $APP_NAME add?" \
+    WANT_APP_ENTRY "A separate 7th Heaven tile on the DroidDeck app's Desktop page" "$app_default" \
+    WANT_STEAM "7th Heaven in Steam, as a non-Steam game" 1 \
+    WANT_DESKTOP "7th Heaven in the KDE desktop's application menu" 1
+  [ "$WANT_APP_ENTRY" = 1 ] && add_app_entry
+  [ "$WANT_STEAM" = 1 ] && add_steam_shortcut
+  [ "$WANT_DESKTOP" = 1 ] && add_desktop_entry
   return 0
 }
 
