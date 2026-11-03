@@ -144,6 +144,16 @@ it as a release, which is what DroidDeck's **Add an app > GitHub** installs. Wit
 tags, run the workflow by hand on `master` instead (**Actions > Release > Run workflow**): it does the
 same and creates the tag `v<VERSION>` itself.
 
+For a testing pre-release, set `VERSION` on a branch to a SemVer pre-release (for example `0.2.0-beta.1`)
+and run the workflow by hand on that branch. It publishes a pre-release, which DroidDeck's **Add an
+app > GitHub** passes over while a normal release is among the 15 newest. Install it by downloading the
+AppImage and adding it with **Desktop > Add an app > AppImage**. Delete old pre-releases once the normal
+release is out. `master` only publishes normal releases.
+
+A pre-release is built as `7thDroid-Canary-<version>-aarch64.AppImage`, named **7thDroid Canary** and
+with a red icon (`packaging/7thdroid-canary.png`), so its tile is told apart from the release's. Both
+tiles work on the same 7th Heaven install.
+
 ## License
 
 GPL-3.0. See [LICENSE](LICENSE).

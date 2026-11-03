@@ -3,6 +3,11 @@ name: Release
 # Pushing a tag vX.Y.Z (matching the VERSION file), or running this workflow by hand on master, tests
 # 7thDroid, builds its aarch64 AppImage and publishes it as a normal release v<VERSION>, which
 # DroidDeck's "Add an app > GitHub" installs. Run by hand, the release also creates the tag.
+# Run by hand on any other branch, whose VERSION must then be a SemVer pre-release (X.Y.Z-beta.1),
+# it publishes a pre-release for testing instead, built as "7thDroid Canary" with a red icon so its
+# DroidDeck tile is told apart from the release's. DroidDeck's GitHub install passes over pre-releases
+# while a normal release is among the 15 newest, so delete old pre-releases after each release.
+# A pull request only tests and builds; its AppImage is kept as the run's artifact.
 on:
   push:
     tags: ["v*"]
@@ -35,14 +40,27 @@ jobs:
     container: ghcr.io/pkgforge-dev/archlinux:latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Read VERSION
+      - name: Check VERSION fits the ref
         id: version
-        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
-      - name: Check the tag matches VERSION
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: test "v$(cat VERSION)" = "$GITHUB_REF_NAME"
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          version=$(cat VERSION)
+          echo "$version" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?' \
+            || { echo "VERSION '$version' is not X.Y.Z or X.Y.Z-<pre-release>." >&2; exit 1; }
+          case $version in *-*) prerelease=true ;; *) prerelease=false ;; esac
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "Tag $GITHUB_REF_NAME does not match VERSION $version." >&2; exit 1; }
+          elif [ "$EVENT" = workflow_dispatch ] && [ "$GITHUB_REF_NAME" = master ]; then
+            [ "$prerelease" = false ] || { echo "master publishes normal releases; VERSION $version is a pre-release." >&2; exit 1; }
+          elif [ "$EVENT" = workflow_dispatch ]; then
+            [ "$prerelease" = true ] || { echo "A branch publishes pre-releases; set VERSION to $version-beta.1 or similar." >&2; exit 1; }
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
       - uses: pkgforge-dev/anylinux-setup-action@0964f2258d6c93d1391359978dde081fd8b3c6af # v2
       - name: Build the AppImage
         run: /bin/sh packaging/build-appimage.sh
@@ -54,7 +72,7 @@ jobs:
   release:
     if: >-
       startsWith(github.ref, 'refs/tags/v') ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master')
+      (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/'))
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -68,6 +86,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.build.outputs.version }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
         run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then tag=$GITHUB_REF_NAME; else tag=v$VERSION; fi
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -77,8 +96,20 @@ jobs:
           cat > notes.md <<'EOF'
           **7thDroid is experimental software, provided as is, without warranty of any kind. Use it at your own risk.**
 
+          EOF
+          extra=()
+          if [ "$PRERELEASE" = true ]; then
+            extra=(--prerelease)
+            cat >> notes.md <<EOF
+          **This is a pre-release for testing, built from \`$GITHUB_REF_NAME\`.** DroidDeck's **Add an app > GitHub** does not offer it.
+          To try it, download the AppImage below and add it in DroidDeck with **Desktop > Add an app > AppImage**.
+          It installs as a separate **7thDroid Canary** tile with a red icon. It shares 7th Heaven's install, settings and log with the 7thDroid tile.
+          EOF
+          else
+            cat >> notes.md <<'EOF'
           Install it in DroidDeck: **Desktop > Add an app > GitHub**, then enter this repository's name.
           Open the new 7thDroid tile to install 7th Heaven; open it again to launch 7th Heaven, update it, redo its shortcuts or uninstall it.
           EOF
+          fi
           gh release create "$tag" dist/*.AppImage --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "7thDroid $tag" --notes-file notes.md
+            --title "7thDroid $tag" --notes-file notes.md "${extra[@]}"
