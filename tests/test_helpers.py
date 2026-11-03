@@ -124,5 +124,24 @@ class ShortcutFileTest(unittest.TestCase):
             self.assertEqual(call("has", tool, root, exe), 1)
 
 
+class WarningTest(unittest.TestCase):
+    def test_installer_warning_is_the_readme_warning(self):
+        import re
+        with open(os.path.join(REPO, "README.md"), encoding="utf-8") as f:
+            quote = []
+            for line in f:
+                if not line.startswith(">"):
+                    if quote:
+                        break
+                    continue
+                quote.append(line[1:].strip())
+        text = "\n".join(line for line in quote if line != "[!WARNING]")
+        paragraphs = [" ".join(p.split("\n")).strip() for p in text.split("\n\n")]
+        readme = [re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", p.replace("**", "")) for p in paragraphs if p]
+        with open(os.path.join(REPO, "assets", "WARNING.txt"), encoding="utf-8") as f:
+            ours = [p.strip() for p in f.read().split("\n\n") if p.strip()]
+        self.assertEqual(ours, readme)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,5 @@
 #!/bin/bash
-# End-to-end runs of install.sh against fixture trees. DroidDeck's own Python helpers come from a
+# End-to-end runs of 7thdroid.sh against fixture trees. DroidDeck's own Python helpers come from a
 # DroidDeck checkout (DROIDDECK_SRC); tests/stubs/droiddeck-proton-run stands in for running Wine.
 set -u
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -21,7 +21,7 @@ cleanup() {
   esac
 }
 
-# fixture NAME -> sets T (a fresh fake home) and the environment install.sh reads
+# fixture NAME -> sets T (a fresh fake home) and the environment 7thdroid.sh reads
 fixture() {
   T=$(mktemp -d)
   export HOME=$T XDG_CONFIG_HOME=$T/.config XDG_DATA_HOME=$T/.local/share XDG_CACHE_HOME=$T/.cache XDG_STATE_HOME=$T/.local/state
@@ -75,7 +75,7 @@ steam_game() { # LIBRARY APPID INSTALLDIR EXE
   printf '"AppState"\n{\n\t"appid"\t\t"%s"\n\t"StateFlags"\t\t"4"\n\t"installdir"\t\t"%s"\n}\n' "$2" "$3" > "$1/steamapps/appmanifest_$2.acf"
 }
 
-installer() { bash "$REPO/install.sh" --yes --version stable "$@" > "$T/out.log" 2>&1; }
+installer() { bash "$REPO/7thdroid.sh" --install --yes --version stable --no-copy-game "$@" > "$T/out.log" 2>&1; }
 settings() { cat "$1/pfx/drive_c/7th Heaven/7thWorkshop/settings.xml"; }
 
 echo "Steam 2026 release in a second library"
@@ -103,7 +103,7 @@ check "launcher runs the prefix's 7th Heaven" grep -qF "$CD/pfx/drive_c/7th\\ He
 check "launcher reports FF7's Steam app id" grep -qFe "--options 'SteamAppId=3837340 %command%'" "$T/.local/share/7thdroid/7th Heaven.sh"
 check "app entry" test "$(cat "$T/opt/droiddeck-apps/7thheaven/entry")" = "7th Heaven.sh"
 check "KDE entry" test -f "$T/.local/share/applications/7th-heaven.desktop"
-check "second run skips finished steps" bash -c "cp '$STUB_LOG' '$T/first.log'; bash '$REPO/install.sh' --yes --version stable --no-steam >/dev/null 2>&1 && cmp -s '$STUB_LOG' '$T/first.log'"
+check "second run skips finished steps" bash -c "cp '$STUB_LOG' '$T/first.log'; bash '$REPO/7thdroid.sh' --install --yes --version stable --no-copy-game --no-steam >/dev/null 2>&1 && cmp -s '$STUB_LOG' '$T/first.log'"
 cleanup
 
 echo "Steam 2013 release, launch entries declined"
@@ -119,6 +119,23 @@ check "launcher reports app 39140" grep -qFe "--options 'SteamAppId=39140 %comma
 check "user slot" test -d "$CD/pfx/drive_c/users/steamuser/Documents/Square Enix/FINAL FANTASY VII Steam/user_12345678"
 check "no app entry" test ! -e "$T/opt/droiddeck-apps/7thheaven"
 check "no KDE entry" test ! -e "$T/.local/share/applications/7th-heaven.desktop"
+cleanup
+
+echo "Steam 2013 release copied into the prefix"
+fixture
+steam_game "$STEAM_ROOT" 39140 "FINAL FANTASY VII" ff7_en.exe
+check "installer succeeds" installer --no-steam --copy-game
+CD=$(own_prefix)
+COPY="$CD/pfx/drive_c/FINAL FANTASY VII"
+check "game copied into the prefix" test -f "$COPY/ff7_en.exe"
+check "FF7Exe is the copy" grep -qF "<FF7Exe>Z:${COPY//\//\\}\\ff7_en.exe</FF7Exe>" <(settings "$CD")
+check "still the Steam release" grep -q '<FF7InstalledVersion>Steam</FF7InstalledVersion>' <(settings "$CD")
+check "launcher still reports app 39140" grep -qFe "--options 'SteamAppId=39140 %command%'" "$T/.local/share/7thdroid/7th Heaven.sh"
+check "the copy is in the saved state" grep -qx 'GAME_COPY=1' "$T/.local/share/7thdroid/install.env"
+check "original game folder unchanged" test "$(ls -A "$STEAM_ROOT/steamapps/common/FINAL FANTASY VII")" = ff7_en.exe
+touch "$COPY/modded"
+check "a re-run reuses the copy" bash -c "bash '$REPO/7thdroid.sh' --install --yes --version stable --no-steam >/dev/null 2>&1 && test -f '$COPY/modded'"
+check "--no-copy-game goes back to the original" bash -c "bash '$REPO/7thdroid.sh' --install --yes --version stable --no-steam --no-copy-game >/dev/null 2>&1 && grep -qF 'steamapps\\common\\FINAL FANTASY VII\\ff7_en.exe' '$CD/pfx/drive_c/7th Heaven/7thWorkshop/settings.xml'"
 cleanup
 
 echo "GOG through Heroic (Flatpak)"
@@ -231,7 +248,7 @@ tool = runpy.run_path(sys.argv[1])
 items = list(tool["parse"](open(sys.argv[2], "rb").read())["shortcuts"].values())
 assert len(items) == 1 and items[0]["Exe"] == '"%s"' % sys.argv[3] and items[0]["tags"] == {}, items
 EOF
-check "re-adding replaces it" bash -c "bash '$REPO/install.sh' --yes --shortcuts-only --steam --no-app-entry --no-desktop >/dev/null 2>&1 && python3 - <<'EOF'
+check "re-adding replaces it" bash -c "bash '$REPO/7thdroid.sh' --yes --shortcuts-only --steam --no-app-entry --no-desktop >/dev/null 2>&1 && python3 - <<'EOF'
 import runpy
 tool = runpy.run_path('$DD_BIN/droiddeck-steam-shortcuts')
 assert len(tool['parse'](open('$STEAM_ROOT/userdata/12345/config/shortcuts.vdf', 'rb').read())['shortcuts']) == 1
@@ -253,7 +270,7 @@ echo "DroidDeck-Proton missing: install fails"
 fixture no-proton
 steam_game "$STEAM_ROOT" 39140 "FINAL FANTASY VII" ff7_en.exe
 export STUB_PROTON_EXTRA_FAIL=1
-check "stops" bash -c "! bash '$REPO/install.sh' --yes --version stable --no-steam >'$T/out.log' 2>&1"
+check "stops" bash -c "! bash '$REPO/7thdroid.sh' --install --yes --version stable --no-steam >'$T/out.log' 2>&1"
 check "explains how to install it" grep -q 'droiddeck-proton-extra .* droiddeck' "$T/out.log"
 check "no prefix made" test ! -e "$(own_prefix)"
 cleanup
@@ -285,7 +302,7 @@ cleanup
 
 echo "7th Heaven canary build"
 fixture
-check "installer succeeds" bash -c "bash '$REPO/install.sh' --yes --version canary --no-steam --source '$REPO/tests/fixtures/game' > '$T/out.log' 2>&1"
+check "installer succeeds" bash -c "bash '$REPO/7thdroid.sh' --install --yes --version canary --no-steam --source '$REPO/tests/fixtures/game' > '$T/out.log' 2>&1"
 CD=$(own_prefix)
 check "the canary asset, kept apart by its date" grep -q $'\tcanary-202611011640-7thHeaven-v4.6.0.1_Release.exe\t' "$STUB_LOG"
 check "update channels set to Canary" grep -q '<AppUpdateChannel>Canary</AppUpdateChannel>' <(settings "$CD")
@@ -294,7 +311,7 @@ cleanup
 
 echo "The retired pinned build"
 fixture
-check "is refused" bash -c "! bash '$REPO/install.sh' --yes --version pinned --no-steam --source '$REPO/tests/fixtures/game' > '$T/out.log' 2>&1"
+check "is refused" bash -c "! bash '$REPO/7thdroid.sh' --install --yes --version pinned --no-steam --source '$REPO/tests/fixtures/game' > '$T/out.log' 2>&1"
 check "names the builds offered" grep -q "use stable or canary" "$T/out.log"
 check "no prefix made" test ! -e "$(own_prefix)"
 cleanup
@@ -317,27 +334,37 @@ heroic_game() {
     > "$T/.config/heroic/gog_store/installed.json"
 }
 
-echo "Windows instead of a terminal (AppImage), then its menu"
+echo "Windows instead of a terminal (AppImage): the menu installs, then offers the rest"
 fixture
 heroic_game
 ARGS=(--version stable)
-check "installer succeeds" windowed install.sh 0 yes cancel yes
+# menu: Install; warning: Continue; the Heroic copy; copy the game: yes; shortcuts: tile and KDE; menu: closed
+check "installer succeeds" windowed 7thdroid.sh 0 yes 0 yes '0|2'
 CD=$(own_prefix)
+check "the menu offered only Install" bash -c "grep -m1 '^list' '$T/zenity.log' | grep -F 'Install\\ 7th\\ Heaven' | grep -vqF 'Launch'"
+check "the warning comes first" bash -c "grep -m1 '^question' '$T/zenity.log' | grep -F 'THIS SOFTWARE IS EXPERIMENTAL' | grep -qF -- '--ok-label=Continue'"
 check "copies offered in a list" grep -q '^list .*--radiolist' "$T/zenity.log"
 check "progress window shows the steps" grep -q '^progress-line # Installing 7th Heaven' "$T/zenity.log"
-check "app tile is opt-in from the AppImage" bash -c "grep '^question' '$T/zenity.log' | grep -F 'separate\\ 7th\\ Heaven\\ tile' | grep -q -- --default-cancel"
-check "app tile added when answered yes" test -f "$T/opt/droiddeck-apps/7thheaven/entry"
-check "Steam shortcut skipped when answered no" test ! -e "$STEAM_ROOT/userdata/12345/config/shortcuts.vdf"
-check "KDE entry added" test -f "$T/.local/share/applications/7th-heaven.desktop"
-check "says it is done" grep -q '^info .*is installed for GOG' "$T/zenity.log"
+check "backslashes reach zenity escaped" grep -qF 'to C:\\7th Heaven.' "$T/zenity.log"
+check "no 'close it to continue' note" bash -c "! grep -q 'close it to continue' '$T/zenity.log'"
+check "game copied into the prefix" test -f "$CD/pfx/drive_c/FINAL FANTASY VII/FFVII.exe"
+check "shortcuts asked in one list" test "$(grep -c '^list .*--checklist' "$T/zenity.log")" -eq 1
+check "app tile unticked by default in the AppImage" grep -qF 'FALSE 0 A\ separate\ 7th\ Heaven\ tile' "$T/zenity.log"
+check "app tile added when ticked" test -f "$T/opt/droiddeck-apps/7thheaven/entry"
+check "Steam shortcut skipped when unticked" test ! -e "$STEAM_ROOT/userdata/12345/config/shortcuts.vdf"
+check "KDE entry added when ticked" test -f "$T/.local/share/applications/7th-heaven.desktop"
+check "says it is done" grep -qF 'info --title=7thDroid --info --no-markup --width=700 --text=7th\ Heaven\ 4.6.0\ is\ installed\ for\ GOG' "$T/zenity.log"
+check "back to the full menu" bash -c "grep '^list\|^info' '$T/zenity.log' | tail -n 1 | grep -qF 'Add\ or\ recreate\ shortcuts'"
 ARGS=()
 : > "$STUB_LOG"
-check "menu: launch" windowed menu.sh 0
+check "menu: launch" windowed 7thdroid.sh 0
 check "menu launched 7th Heaven in its prefix" grep -q $'^waitforexitandrun\t'"${CD##*/}"$'\t7th Heaven.exe' "$STUB_LOG"
-check "menu: uninstall declined" windowed menu.sh 4 cancel 5
+check "menu: uninstall declined" windowed 7thdroid.sh 4 cancel 5
 check "declining keeps everything" test -f "$CD/pfx/drive_c/7th Heaven/7th Heaven.exe"
+check "the uninstall warning" grep -qF 'WARNING: THIS WILL PERMANENTLY DELETE ANY FF7 SAVES IN THE 7TH HEAVEN PREFIX.' "$T/zenity.log"
 before=$(other_prefixes)
-check "menu: uninstall" windowed menu.sh 4 yes
+check "menu: uninstall" windowed 7thdroid.sh 4 yes
+check "back to a menu with only Install" bash -c "grep '^list' '$T/zenity.log' | tail -n 1 | grep -F 'Install\\ 7th\\ Heaven' | grep -vqF 'Launch'"
 check "prefix removed" test ! -e "$CD"
 check "launcher and state removed" test ! -e "$T/.local/share/7thdroid"
 check "downloads removed" test ! -e "$T/.cache/7thdroid"
@@ -352,33 +379,47 @@ echo "Windows: picking a GOG installer"
 fixture
 mkdir -p "$T/Download"
 echo stub > "$T/Download/setup_final_fantasy_vii_2.0_(gog).exe"
-ARGS=(--version stable --no-app-entry --no-steam --no-desktop)
-check "installer succeeds" windowed install.sh 1 "$T/Download/setup_final_fantasy_vii_2.0_(gog).exe" "$T/Games/FF7"
+ARGS=(--install --version stable --no-app-entry --no-steam --no-desktop)
+check "installer succeeds" windowed 7thdroid.sh yes 1 "$T/Download/setup_final_fantasy_vii_2.0_(gog).exe" "$T/Games/FF7"
+check "no copy offered for a game it installed" bash -c "! grep -q 'Copy\\\\ FINAL' '$T/zenity.log'"
 check "file picker filtered to installers" grep -q '^file-selection .*--file-filter=GOG\\ installer' "$T/zenity.log"
 check "game installed where chosen" test -f "$T/Games/FF7/FFVII.exe"
 cleanup
 
-echo "Windows: cancelling"
+echo "Windows: Quit at the warning"
 fixture
 heroic_game
-ARGS=(--version stable)
-windowed install.sh cancel
-check "cancel stops the installer" test $? -eq 130
+ARGS=(--install --version stable)
+windowed 7thdroid.sh cancel
+check "Quit stops the installer" test $? -eq 130
 check "no prefix made" test ! -e "$(own_prefix)"
+ARGS=(--version stable)
+check "from the menu, the menu comes back" windowed 7thdroid.sh 0 cancel
+check "it showed the menu twice" test "$(grep -c '^list' "$T/zenity.log")" -eq 2
+check "still no prefix" test ! -e "$(own_prefix)"
+cleanup
+
+echo "Windows: shortcut list cancelled"
+fixture
+heroic_game
+ARGS=(--install --version stable --no-copy-game)
+check "installer succeeds" windowed 7thdroid.sh yes 0 cancel
+check "no shortcuts added" test ! -e "$T/opt/droiddeck-apps/7thheaven" -a ! -e "$T/.local/share/applications/7th-heaven.desktop"
+check "7th Heaven installed all the same" test -f "$(own_prefix)/pfx/drive_c/7th Heaven/7th Heaven.exe"
 cleanup
 
 echo "Typed answers: a path to an installed game"
 fixture
 mkdir -p "$T/My FF7"
 touch "$T/My FF7/FFVII.exe" "$T/My FF7/goggame-1698970154.info"
-check "installer succeeds" bash -c "printf '%s\n' \"'$T/My FF7'\" | UI_MODE=tty timeout 300 bash '$REPO/install.sh' --version stable --no-app-entry --no-steam --no-desktop > '$T/out.log' 2>&1"
+check "installer succeeds" bash -c "printf '%s\n' \"'$T/My FF7'\" | UI_MODE=tty timeout 300 bash '$REPO/7thdroid.sh' --install --version stable --no-app-entry --no-steam --no-desktop > '$T/out.log' 2>&1"
 check "uses the typed folder" grep -qF "Game: $T/My FF7/FFVII.exe" "$T/out.log"
 cleanup
 
 echo "No terminal and no windows"
 fixture
 heroic_game
-check "refuses instead of taking defaults" bash -c "! bash '$REPO/install.sh' --version stable < /dev/null > '$T/out.log' 2>&1"
+check "refuses instead of taking defaults" bash -c "! bash '$REPO/7thdroid.sh' --version stable < /dev/null > '$T/out.log' 2>&1"
 check "says why" grep -q "no terminal or window to ask in" "$T/out.log"
 check "no prefix made" test ! -e "$(own_prefix)"
 cleanup
@@ -389,7 +430,7 @@ mkdir -p "$T/ddbin"
 cp "$DD_BIN"/* "$T/ddbin/" 2>/dev/null
 sed -i 's/^def build_key(/def _old_build_key(/' "$T/ddbin/steam-compatibility"
 export DROIDDECK_BIN=$T/ddbin DROIDDECK_PROTON_EXTRA=$T/must-not-run
-check "stops" bash -c "! bash '$REPO/install.sh' --yes --version stable --no-steam >'$T/out.log' 2>&1"
+check "stops" bash -c "! bash '$REPO/7thdroid.sh' --install --yes --version stable --no-steam >'$T/out.log' 2>&1"
 check "asks for DroidDeck 0.6.7 or newer" grep -q "needs DroidDeck 0.6.7 or newer" "$T/out.log"
 check "the missing piece is in the log" grep -q "steam-compatibility: build_key" "$T/.local/state/7thdroid/install.log"
 check "nothing downloaded or made" test ! -e "$(own_prefix)"
@@ -398,7 +439,8 @@ cleanup
 echo "Error windows name the log once"
 fixture
 export DROIDDECK_PROTON_RUN=$T/none
-windowed install.sh
+ARGS=(--install)
+windowed 7thdroid.sh yes
 check "installer stops" test $? -ne 0
 check "the log is named once" test "$(grep '^error' "$T/zenity.log" | grep -o 'install\.log' | wc -l)" -le 1
 cleanup
@@ -406,7 +448,7 @@ cleanup
 echo "Missing DroidDeck"
 fixture
 export DROIDDECK_PROTON_RUN=$T/none
-check "names what is missing" bash -c "! bash '$REPO/install.sh' --yes >'$T/out.log' 2>&1 && grep -q 'droiddeck-proton-run' '$T/out.log'"
+check "names what is missing" bash -c "! bash '$REPO/7thdroid.sh' --yes >'$T/out.log' 2>&1 && grep -q 'droiddeck-proton-run' '$T/out.log'"
 cleanup
 
 printf '\n%d passed, %d failed\n' "$PASSED" "$FAILED"
