@@ -55,6 +55,11 @@ Without that, the GOG installer stops with "File not fpund". 7thDroid passes the
 - **Saves:** FF7 run through 7th Heaven keeps its saves in 7th Heaven's prefix, separate from vanilla FF7 started from Steam.
 - **Game files:** 7th Heaven itself writes into the game folder on first run (for the 2026 and GOG releases, `ff7/workingdir` and its own patched `ff7_en.exe`), as it does on Windows. Steam's "Verify integrity of game files" restores the originals.
 - **Disc folders you supply are never written to:** 7thDroid maps them as CD drives through small folders of links under `~/.local/share/7thdroid/cd/`.
+- **Steam achievements (Steam copies only):** 7th Heaven starts as FF7's Steam app (39140 or 3837340), so FF7 can use the Steam API. To use it:
+  1. In 7th Heaven, turn on **Settings > Game Driver > Advanced > Steam Compatibility**.
+  2. Start 7th Heaven with Steam: choose **Launch 7th Heaven with Steam** in 7thDroid, or start the "7th Heaven" shortcut in Steam. If the shortcut isn't in Steam yet, 7thDroid offers to add it.
+
+  With that setting on, FF7 starts only while Steam is running. Steam Cloud doesn't sync these saves, because they're kept in 7th Heaven's prefix.
 
 ## Installing
 
@@ -67,8 +72,9 @@ Without that, the GOG installer stops with "File not fpund". 7thDroid passes the
    7th Heaven build, and which shortcuts to add. A file picker opens in Android's Downloads folder when
    you need to point it at an installer or disc images.
 4. Open the tile again whenever you like. Once 7th Heaven is installed it offers a menu:
-   **Launch 7th Heaven**, **Update or repair 7th Heaven**, **Add or redo shortcuts**, **Show the last
-   log** and **Uninstall 7th Heaven**.
+   **Launch 7th Heaven**, **Launch 7th Heaven with Steam** (Steam copies of FF7 only),
+   **Update or repair 7th Heaven**, **Add or redo shortcuts**, **Show the last log** and
+   **Uninstall 7th Heaven**.
 
 To update 7thDroid itself, update the tile from the Desktop page when a new release is out; your 7th
 Heaven install is kept.
@@ -114,9 +120,11 @@ The log is written to `~/.local/state/7thdroid/install.log`.
 
 - **The Steam shortcut won't start.** The shortcut is a Linux script. If Steam tries to run it with Proton, open its Properties → Compatibility and turn off the forced compatibility tool.
 - **The Steam shortcut wasn't added.** Steam has to be closed while shortcuts are written. Close Steam, then run `bash install.sh --shortcuts-only`.
+- **FF7 says "Steam must be running".** 7th Heaven's Steam Compatibility setting is on. Start 7th Heaven with Steam, or turn the setting off in 7th Heaven's Game Driver settings.
+- **Achievements don't unlock.** They need a Steam copy of FF7, the Steam Compatibility setting, and Steam running. If you installed with an earlier 7thDroid, run **Add or redo shortcuts** once so the launcher reports FF7's app id to Steam.
 - **Mods don't load.** Re-run with `--winetricks-dinput` if a Proton with protonfixes is installed, and please report it.
 - **An earlier 7thDroid installed into Steam's FF7 prefix.** That prefix is left as it is. If vanilla FF7 misbehaves, delete `~/.local/share/Steam/steamapps/compatdata/39140` (or `3837340`) and Steam recreates it the next time the game starts.
-- **Paths to DroidDeck's helpers changed.** Each one can be overridden: `DROIDDECK_BIN` (the folder with DroidDeck's helper scripts), `DROIDDECK_PROTON_RUN`, `DROIDDECK_PROTON_EXTRA`, `DROIDDECK_INNOEXTRACT`, `DROIDDECK_MSITOOLS`, `DROIDDECK_STEAM_SHORTCUTS`, `DROIDDECK_APPS_DIR` and `STEAM_ROOT`.
+- **Paths to DroidDeck's helpers changed.** Each one can be overridden: `DROIDDECK_BIN` (the folder with DroidDeck's helper scripts), `DROIDDECK_PROTON_RUN`, `DROIDDECK_PROTON_EXTRA`, `DROIDDECK_INNOEXTRACT`, `DROIDDECK_MSITOOLS`, `DROIDDECK_STEAM_SHORTCUTS`, `DROIDDECK_STEAM_LAUNCH`, `DROIDDECK_APPS_DIR` and `STEAM_ROOT`.
 
 ## Development
 

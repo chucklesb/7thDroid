@@ -101,6 +101,7 @@ check "FF7Exe is the game's FFVII.exe" grep -qF "<FF7Exe>Z:${T//\//\\}\\sd\\stea
 check "version SteamReRelease" grep -q '<FF7InstalledVersion>SteamReRelease</FF7InstalledVersion>' <(settings "$CD")
 check "timeout.exe" test -f "$CD/pfx/drive_c/windows/system32/timeout.exe"
 check "launcher runs the prefix's 7th Heaven" grep -qF "$CD/pfx/drive_c/7th\\ Heaven/7th\\ Heaven.exe" "$T/.local/share/7thdroid/7th Heaven.sh"
+check "launcher reports FF7's Steam app id" grep -qFe "--options 'SteamAppId=3837340 %command%'" "$T/.local/share/7thdroid/7th Heaven.sh"
 check "app entry" test "$(cat "$T/opt/droiddeck-apps/7thheaven/entry")" = "7th Heaven.sh"
 check "KDE entry" test -f "$T/.local/share/applications/7th-heaven.desktop"
 check "second run skips finished steps" bash -c "cp '$STUB_LOG' '$T/first.log'; bash '$REPO/install.sh' --yes --version pinned --no-steam >/dev/null 2>&1 && cmp -s '$STUB_LOG' '$T/first.log'"
@@ -115,6 +116,7 @@ CD=$(own_prefix)
 check "Steam's FF7 prefix untouched" test "$(other_prefixes)" = "$before"
 check "Z: path to ff7_en.exe" grep -qF "<FF7Exe>Z:${STEAM_ROOT//\//\\}\steamapps\common\FINAL FANTASY VII\ff7_en.exe</FF7Exe>" <(settings "$CD")
 check "version Steam" grep -q '<FF7InstalledVersion>Steam</FF7InstalledVersion>' <(settings "$CD")
+check "launcher reports app 39140" grep -qFe "--options 'SteamAppId=39140 %command%'" "$T/.local/share/7thdroid/7th Heaven.sh"
 check "user slot" test -d "$CD/pfx/drive_c/users/steamuser/Documents/Square Enix/FINAL FANTASY VII Steam/user_12345678"
 check "no app entry" test ! -e "$T/opt/droiddeck-apps/7thheaven"
 check "no KDE entry" test ! -e "$T/.local/share/applications/7th-heaven.desktop"
@@ -132,6 +134,7 @@ ID=$(python3 "$REPO/lib/steam_shortcut.py" appid "$T/.local/share/7thdroid/7th H
 check "dedicated prefix named after the shortcut id" test -f "$STEAM_ROOT/steamapps/compatdata/$ID/pfx/drive_c/7th Heaven/7th Heaven.exe"
 check "first run used --prefix" grep -q $'run\t'"$ID"$'\twindowsdesktop-runtime-9.0.22-win-x64.exe' "$STUB_LOG"
 check "version GOG" grep -q '<FF7InstalledVersion>GOG</FF7InstalledVersion>' <(settings "$STEAM_ROOT/steamapps/compatdata/$ID")
+check "no Steam app id for GOG" bash -c "! grep -q SteamAppId '$T/.local/share/7thdroid/7th Heaven.sh'"
 check "drive label" test "$(cat "$STEAM_ROOT/steamapps/compatdata/$ID/pfx/drive_c/.windows-label")" = FF7DISC1
 cleanup
 
@@ -216,6 +219,7 @@ check "disc labels" test "$(cat "$T/.local/share/7thdroid/cd/drive2/.windows-lab
 check "the user's disc folders were not written to" test -z "$(find "$T/cd1" "$T/cd2" -name '.windows-*')"
 check "CD drive type" grep -q '"e:"="cdrom"' "$PFX/system.reg"
 check "version Original98" grep -q '<FF7InstalledVersion>Original98</FF7InstalledVersion>' <(settings "${PFX%/pfx}")
+check "no Steam app id for the CD-ROM" bash -c "! grep -q SteamAppId '$T/.local/share/7thdroid/7th Heaven.sh'"
 cleanup
 
 echo "Steam shortcut (DroidDeck's shortcuts.vdf code)"
@@ -233,6 +237,8 @@ import runpy
 tool = runpy.run_path('$DD_BIN/droiddeck-steam-shortcuts')
 assert len(tool['parse'](open('$STEAM_ROOT/userdata/12345/config/shortcuts.vdf', 'rb').read())['shortcuts']) == 1
 EOF"
+check "the shortcut is found" python3 "$REPO/lib/steam_shortcut.py" has "$DD_BIN/droiddeck-steam-shortcuts" "$STEAM_ROOT" "$T/.local/share/7thdroid/7th Heaven.sh"
+check "--shortcuts-only keeps the Steam app id" grep -qFe "--options 'SteamAppId=39140 %command%'" "$T/.local/share/7thdroid/7th Heaven.sh"
 cleanup
 
 echo "DroidDeck-Proton missing: installed when accepted"

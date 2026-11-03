@@ -97,7 +97,7 @@ fi
 if [ "$SHORTCUTS_ONLY" = 1 ]; then
   load_state || die "No earlier install found ($STATE_FILE). Run the full installer first."
   [ "$COMPATDATA" = "$DEDICATED" ] || die "The last install was made by an older $APP_NAME. Run the full installer once."
-  write_launcher "$(seventh_exe "$COMPATDATA")"
+  write_launcher "$(seventh_exe "$COMPATDATA")" "$(ff7_steam_appid)"
   offer_shortcuts
   ui_done "The 7th Heaven shortcuts are up to date."
   exit 0
@@ -178,15 +178,22 @@ if [ -z "$FF7_VERSION" ]; then
 fi
 configure_seventh_heaven "$COMPATDATA" "$GAME_EXE" "$FF7_VERSION"
 
-write_launcher "$(seventh_exe "$COMPATDATA")"
+write_launcher "$(seventh_exe "$COMPATDATA")" "$(ff7_steam_appid)"
 [ "$DRY_RUN" = 1 ] || save_state SOURCE_KIND APPID GAME_DIR GAME_EXE COMPATDATA FF7_VERSION SEVENTH_CHANNEL SEVENTH_TAG
 offer_shortcuts
 
 step "Done"
 ok "7th Heaven $SEVENTH_TAG is installed for $FF7_VERSION FINAL FANTASY VII."
 info "Start it with: bash \"$LAUNCHER\" (or the shortcuts you added)."
+steam_note=''
+if [ -n "$(ff7_steam_appid)" ]; then
+  steam_note="
+
+For Steam achievements, turn on Steam Compatibility in 7th Heaven (Settings > Game Driver > Advanced), then start 7th Heaven with Steam: \"Launch 7th Heaven with Steam\" in 7thDroid, or the \"$LAUNCHER_NAME\" shortcut in Steam. With that setting on, FF7 only starts while Steam is running."
+  info "${steam_note#$'\n\n'}"
+fi
 info "Prefix: $COMPATDATA"
 info "Log: $LOG_FILE"
 ui_done "7th Heaven $SEVENTH_TAG is installed for $FF7_VERSION FINAL FANTASY VII.
 
-Open 7thDroid again to launch it."
+Open 7thDroid again to launch it.$steam_note"

@@ -12,21 +12,51 @@ dedicated_prefix_id() {
   python "$LIB_DIR/steam_shortcut.py" appid "$LAUNCHER" "$LAUNCHER_NAME"
 }
 
+# The Steam app id of the FF7 copy 7th Heaven uses, when it is one from Steam; nothing otherwise.
+ff7_steam_appid() {
+  [ "${SOURCE_KIND:-}" = steam ] && [ -n "${APPID:-}" ] && printf '%s\n' "$APPID"
+  return 0
+}
+
+# write_launcher EXE [STEAM_APPID]
 write_launcher() {
-  local exe=$1
+  local exe=$1 steam_appid=${2:-} options='' why=''
   info "Launcher: $LAUNCHER"
+  if [ -n "$steam_appid" ]; then
+    [[ $steam_appid =~ ^[1-9][0-9]*$ ]] || die "Internal error: '$steam_appid' is not a Steam app id"
+    # droiddeck-proton-run tells Steam a non-Steam prefix's programs are app 0; FFNx's Steam
+    # Compatibility setting needs FF7's own id, and ff7.exe inherits it from 7th Heaven.
+    options="--options 'SteamAppId=$steam_appid %command%' "
+    why="
+# FF7 is the Steam copy (app $steam_appid): the Steam API is told so, for achievements."
+    info "FF7 is a Steam copy: 7th Heaven starts as Steam app $steam_appid."
+  fi
   [ "$DRY_RUN" = 1 ] && return 0
   mkdir -p "$DATA_DIR"
   cp -f "$ASSETS_DIR/7th-heaven.png" "$ICON"
   cat > "$LAUNCHER" <<EOF
 #!/bin/bash
 # Starts 7th Heaven in its Proton prefix. Written by $APP_NAME; re-running the installer replaces it.
-# 7th Heaven loads mods through a dinput.dll beside the game, which Wine must prefer to its own.
+# 7th Heaven loads mods through a dinput.dll beside the game, which Wine must prefer to its own.$why
 export WINEDLLOVERRIDES="dinput=n,b\${WINEDLLOVERRIDES:+;\$WINEDLLOVERRIDES}"
 proton_run=\$(command -v droiddeck-proton-run || echo $(printf '%q' "$PROTON_RUN"))
-exec "\$proton_run" $(printf '%q' "$exe") "\$@"
+exec "\$proton_run" $options$(printf '%q' "$exe") "\$@"
 EOF
   chmod +x "$LAUNCHER"
+}
+
+# Is 7th Heaven in Steam as a non-Steam game?
+has_steam_shortcut() {
+  [ -f "$SHORTCUTS_TOOL" ] && python "$LIB_DIR/steam_shortcut.py" has "$SHORTCUTS_TOOL" "$STEAM_ROOT" "$LAUNCHER" 2>/dev/null
+}
+
+# Starts 7th Heaven's Steam shortcut through Steam, as DroidDeck's own desktop entries start games:
+# the desktop's Steam client on the KDE desktop, Steam's Big Picture otherwise.
+steam_launch_shortcut() {
+  local ui=bigpicture id
+  [ "${BL_DESKTOP:-}" = 1 ] && ui=desktop
+  id=$(python "$LIB_DIR/steam_shortcut.py" gameid "$LAUNCHER" "$LAUNCHER_NAME") || return 1
+  "$STEAM_LAUNCH" "$ui" "steam://rungameid/$id"
 }
 
 add_app_entry() {

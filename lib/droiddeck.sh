@@ -10,6 +10,7 @@ MSITOOLS_DIR=${DROIDDECK_MSITOOLS:-/usr/local/lib/droiddeck-msitools}
 DROIDDECK_BIN=${DROIDDECK_BIN:-/usr/local/bin}
 SHORTCUTS_TOOL=${DROIDDECK_STEAM_SHORTCUTS:-$DROIDDECK_BIN/droiddeck-steam-shortcuts}
 PROTON_EXTRA=${DROIDDECK_PROTON_EXTRA:-$DROIDDECK_BIN/droiddeck-proton-extra}
+STEAM_LAUNCH=${DROIDDECK_STEAM_LAUNCH:-$DROIDDECK_BIN/droiddeck-steam-launch}
 APPS_DIR=${DROIDDECK_APPS_DIR:-/opt/droiddeck-apps}
 EXTRA_LIBRARIES=(/mnt/droiddeck-sd /mnt/droiddeck)
 
