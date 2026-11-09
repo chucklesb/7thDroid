@@ -193,6 +193,13 @@ class FfnxTomlTest(unittest.TestCase):
         self.assertEqual(self.run_tool("0"), 3)
         self.assertFalse(os.path.exists(self.toml))
 
+    def test_exists_only_checks(self):
+        exists = [sys.executable, "-I", os.path.join(LIB, "ffnx_toml.py"), "--exists", self.settings, self.drive_c]
+        self.assertEqual(subprocess.run(exists).returncode, 0)
+        self.assertEqual(self.read(), FFNX_TOML)
+        os.remove(self.toml)
+        self.assertEqual(subprocess.run(exists).returncode, 3)
+
     def test_other_drive(self):
         self.set_exe(r"D:\ff7.exe")
         self.assertEqual(self.run_tool("0"), 1)

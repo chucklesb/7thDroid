@@ -62,7 +62,7 @@ Without that, the GOG installer stops with "File not fpund". 7thDroid passes the
   - **Steam Compatibility:** on for **Launch 7th Heaven with Steam**, off for **Launch 7th Heaven**.
 
   7th Heaven installs FFNx, with its default settings, the first time you play, so these apply from the second launch on. 7th Heaven also resets them when it updates FFNx, and the menu sets them again on the next launch.
-- **Steam achievements (Steam copies only):** choose **Launch 7th Heaven with Steam**. 7th Heaven starts as FF7's Steam app (39140 or 3837340) through its entry in Steam, so FF7 can use the Steam API. Starting that entry from Steam's library works too, but only the menu sets Steam Compatibility for you. Steam Cloud doesn't sync these saves, because they're kept in 7th Heaven's prefix.
+- **Steam achievements (Steam copies only):** choose **Launch 7th Heaven with Steam**. The menu offers it once you've played FF7 through 7th Heaven once, because FFNx, which carries the Steam Compatibility setting, is installed at that first play. 7th Heaven starts as FF7's Steam app (39140 or 3837340) through its entry in Steam, so FF7 can use the Steam API. Starting that entry from Steam's library works too, but only the menu sets Steam Compatibility for you. Steam Cloud doesn't sync these saves, because they're kept in 7th Heaven's prefix.
 
 ## Installing
 

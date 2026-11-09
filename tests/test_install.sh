@@ -271,7 +271,6 @@ assert len(tool['parse'](open('$STEAM_ROOT/userdata/12345/config/shortcuts.vdf',
 EOF"
 check "--steam-shortcut keeps the Steam app id" grep -qFe "--options 'SteamAppId=39140 %command%'" "$T/.local/share/7thdroid/7th Heaven.sh"
 GAME="$STEAM_ROOT/steamapps/common/FINAL FANTASY VII"
-printf 'renderer_backend = 5\nenable_steam_achievements = false\n' > "$GAME/FFNx.toml"
 cat > "$T/steam-launch" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >> "$STUB_LOG"
@@ -279,8 +278,12 @@ EOF
 chmod +x "$T/steam-launch"
 export DROIDDECK_STEAM_LAUNCH=$T/steam-launch
 ARGS=()
+check "menu before the first play: Quit" windowed 7thdroid.sh 4
+check "no Launch with Steam before FFNx exists" bash -c "grep -m1 '^list' '$T/zenity.log' | grep -vqF 'with\\ Steam\\ FALSE'"
+check "the menu says to play once first" bash -c "grep -m1 '^list' '$T/zenity.log' | grep -q 'appears.*here.*after.*that'"
+printf 'renderer_backend = 5\nenable_steam_achievements = false\n' > "$GAME/FFNx.toml"
 : > "$STUB_LOG"
-check "menu: launch with Steam" windowed 7thdroid.sh 1
+check "menu: launch with Steam, once FFNx exists" windowed 7thdroid.sh 1
 check "Steam asked to start the entry" grep -q 'steam://rungameid/' "$STUB_LOG"
 check "Steam Compatibility on for a Steam launch" grep -qx 'enable_steam_achievements = true' "$GAME/FFNx.toml"
 check "a chosen Graphics API is kept" grep -qx 'renderer_backend = 5' "$GAME/FFNx.toml"

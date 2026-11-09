@@ -2,6 +2,7 @@
 """Sets 7thDroid's FFNx options in the FFNx.toml 7th Heaven uses, just before a launch.
 
     ffnx_toml.py SETTINGS_XML DRIVE_C STEAM
+    ffnx_toml.py --exists SETTINGS_XML DRIVE_C
 
 SETTINGS_XML is 7th Heaven's settings.xml; its FF7Exe names the game folder, which holds FFNx.toml.
 DRIVE_C is the prefix's drive_c. STEAM is 1 when Steam starts 7th Heaven, else 0.
@@ -10,7 +11,7 @@ DRIVE_C is the prefix's drive_c. STEAM is 1 when Steam starts 7th Heaven, else 0
 - enable_steam_achievements (7th Heaven's Steam Compatibility): on only for a Steam launch.
 
 Like 7th Heaven, only lines already in the file are changed. Exits 3 when there is no FFNx.toml yet:
-7th Heaven installs FFNx, and writes a fresh FFNx.toml, on the first Play.
+7th Heaven installs FFNx, and writes a fresh FFNx.toml, on the first Play. --exists only checks for it.
 """
 import os
 import re
@@ -48,6 +49,9 @@ def update(text, steam):
 
 
 def main(argv):
+    check = argv[1:2] == ["--exists"]
+    if check:
+        argv = argv[1:] + ["0"]
     settings, drive_c, steam = argv[1:4]
     folder = game_folder(settings, drive_c)
     if folder is None:
@@ -56,6 +60,8 @@ def main(argv):
     path = os.path.join(folder, "FFNx.toml")
     if not os.path.isfile(path):
         return 3
+    if check:
+        return 0
     with open(path, encoding="utf-8", newline="") as f:
         text = f.read()
     new = update(text, steam == "1")

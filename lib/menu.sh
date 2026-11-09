@@ -36,7 +36,8 @@ launch_with_steam() {
 # on the first Play, resetting FFNx.toml, so until then there is nothing to set.
 apply_ffnx_settings() {
   local status=0
-  python "$LIB_DIR/ffnx_toml.py" "$COMPATDATA/pfx/drive_c/7th Heaven/7thWorkshop/settings.xml"     "$COMPATDATA/pfx/drive_c" "$1" || status=$?
+  python "$LIB_DIR/ffnx_toml.py" "$COMPATDATA/pfx/drive_c/7th Heaven/7thWorkshop/settings.xml" \
+    "$COMPATDATA/pfx/drive_c" "$1" || status=$?
   case $status in
     0) ;;
     3) info "FFNx is installed the first time you play; $APP_NAME's FFNx settings apply from the next launch." ;;
@@ -45,8 +46,15 @@ apply_ffnx_settings() {
   return 0
 }
 
+# Has FF7 been played through 7th Heaven yet? Until then there is no FFNx, so no Steam Compatibility to
+# turn on, and a Steam launch would start FF7 without achievements.
+ffnx_installed() {
+  python "$LIB_DIR/ffnx_toml.py" --exists "$COMPATDATA/pfx/drive_c/7th Heaven/7thWorkshop/settings.xml" \
+    "$COMPATDATA/pfx/drive_c" 2>/dev/null
+}
+
 run_menu() {
-  local labels actions pick action
+  local labels actions pick action note
   can_ask
   # Closing the menu is how you leave it.
   UI_CANCEL_STATUS=0
@@ -58,13 +66,19 @@ run_menu() {
       run_task --install
       continue
     fi
-    labels=("Launch 7th Heaven") actions=(launch)
+    labels=("Launch 7th Heaven") actions=(launch) note=''
     if [ "$SOURCE_KIND" = steam ]; then
-      labels+=("Launch 7th Heaven with Steam") actions+=(steam)
+      if ffnx_installed; then
+        labels+=("Launch 7th Heaven with Steam") actions+=(steam)
+      else
+        note="
+
+Launch 7th Heaven and play FF7 once first: 7th Heaven sets up its game driver then, and \"Launch 7th Heaven with Steam\" appears here after that."
+      fi
     fi
     labels+=("Update or repair 7th Heaven" "Show the last log" "Uninstall 7th Heaven" "Quit")
     actions+=(update log uninstall quit)
-    choose pick "7th Heaven ${SEVENTH_TAG:+$SEVENTH_TAG }is installed for ${FF7_VERSION:-FINAL FANTASY VII}." "${labels[@]}"
+    choose pick "7th Heaven ${SEVENTH_TAG:+$SEVENTH_TAG }is installed for ${FF7_VERSION:-FINAL FANTASY VII}.$note" "${labels[@]}"
     action=${actions[$pick]}
     case $action in
       launch) apply_ffnx_settings 0; exec bash "$LAUNCHER" ;;
