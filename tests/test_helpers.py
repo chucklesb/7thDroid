@@ -235,6 +235,16 @@ class FfnxTest(unittest.TestCase):
         self.touch("FFNx_steam_api.dll")
         self.assertEqual(self.driver()[1], "current")
 
+    def test_launcher_ff7exe_means_its_workingdir(self):
+        # 7thDroid writes FFVII.exe (the 2026 release's launcher); 7th Heaven switches FF7Exe to
+        # ff7/workingdir only on the next Play, and FFNx lives there all along.
+        self.set_exe(r"C:\FINAL FANTASY VII\FFVII.exe")
+        self.touch("AF3DN.P", "steam_api.dll")
+        self.assertEqual(self.driver()[:2], [self.game, "old"])
+        self.assertEqual(self.tool("exists", self.settings, self.drive_c).returncode, 0)
+        self.assertEqual(self.run_tool("1"), 0)
+        self.assertIn("enable_steam_achievements = true", self.read())
+
     def test_driver_for_1998_and_canary(self):
         self.set_exe(r"C:\FINAL FANTASY VII\ff7\workingdir\ff7.exe", "Original98", "Canary")
         self.touch("AF3DN.P")
