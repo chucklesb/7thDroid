@@ -235,6 +235,16 @@ class FfnxTest(unittest.TestCase):
         self.touch("FFNx_steam_api.dll")
         self.assertEqual(self.driver()[1], "current")
 
+    def test_launcher_ff7exe_means_its_workingdir(self):
+        # 7thDroid writes FFVII.exe (the 2026 release's launcher); 7th Heaven switches FF7Exe to
+        # ff7/workingdir only on the next Play, and FFNx lives there all along.
+        self.set_exe(r"C:\FINAL FANTASY VII\FFVII.exe")
+        self.touch("AF3DN.P", "steam_api.dll")
+        self.assertEqual(self.driver()[:2], [self.game, "old"])
+        self.assertEqual(self.tool("exists", self.settings, self.drive_c).returncode, 0)
+        self.assertEqual(self.run_tool("1"), 0)
+        self.assertIn("enable_steam_achievements = true", self.read())
+
     def test_driver_for_1998_and_canary(self):
         self.set_exe(r"C:\FINAL FANTASY VII\ff7\workingdir\ff7.exe", "Original98", "Canary")
         self.touch("AF3DN.P")
@@ -362,6 +372,39 @@ class BackupTest(unittest.TestCase):
         self.bad_tar(link)
         self.assertEqual(self.tool("extract", self.tar, "saves", dest).returncode, 1)
         self.assertFalse(os.path.lexists(os.path.join(dest, "link")))
+
+    def verify(self, path=None):
+        return self.tool("verify", path or self.tar).returncode
+
+    def test_verify_reads_the_whole_backup(self):
+        import tarfile
+        self.write(os.path.join(self.src, "big.bin"), "x" * 300000)
+        self.tool("create", self.tar, self.manifest, "mods=%s!temp" % self.src)
+        self.assertEqual(self.verify(), 0)
+        with open(self.tar, "rb") as f:
+            data = f.read()
+        with tarfile.open(self.tar) as tar:
+            for _ in tar:
+                pass
+            end = tar.offset
+        cut = os.path.join(self.root, "cut.tar")
+        for size in (len(data) // 2, end):  # inside a file, and between entries with no end marker
+            with open(cut, "wb") as f:
+                f.write(data[:size])
+            result = self.tool("verify", cut)
+            self.assertEqual(result.returncode, 1, size)
+            self.assertIn("incomplete", result.stderr)
+
+    def test_verify_wants_a_manifest_and_safe_entries(self):
+        import tarfile
+        self.write(self.manifest, "BACKUP_DATE=2026-11-09 12:00\n")
+        self.tool("create", self.tar, self.manifest, "mods=%s!temp" % self.src)
+        self.assertEqual(self.verify(), 1)
+        self.bad_tar(tarfile.TarInfo("saves/../escaped.txt"))
+        self.assertEqual(self.verify(), 1)
+        with open(self.tar, "wb") as f:
+            f.write(b"not a tar at all" * 100)
+        self.assertEqual(self.verify(), 1)
 
     def test_settings_keep_this_installs_paths(self):
         old = os.path.join(self.root, "old.xml")
@@ -584,6 +627,25 @@ class RedactTest(unittest.TestCase):
         self.file("root/.droiddeck-x64/.local/share/Steam/config/loginusers.vdf", '"users" { "7656" { "AccountName" "x64player" } }')
         self.r.learn_from_runtime(root)
         self.assertEqual(self.r.redact("armplayer x64player"), "<redacted:account> <redacted:account>")
+
+    def test_learned_account_ids(self):
+        # 7thDroid's addition: the account IDs of loginusers.vdf's SteamIDs, as Steam's logs write them.
+        root = self.dir.name
+        self.file("root/.local/share/Steam/config/loginusers.vdf",
+                  '"users" { "76561198012341234" { "AccountName" "armplayer" } }')
+        self.r.learn_from_runtime(root)
+        account_id = str(76561198012341234 - 76561197960265728)
+        for line, want in (
+                ("Flushed store 'userlocal' to '/root/.local/share/Steam/userdata/%s/config/localconfig.vdf'",
+                 "Flushed store 'userlocal' to '/root/.local/share/Steam/userdata/%s/config/localconfig.vdf'"),
+                ("[AppID 3837340] AutoCloud force-restoring files for user %s in root",
+                 "[AppID 3837340] AutoCloud force-restoring files for user %s in root"),
+                ("Account ID: %s", "Account ID: %s")):
+            self.assertEqual(self.r.redact(line % account_id), want % self.r.masked(account_id))
+        self.assertNotIn(account_id, self.r.masked(account_id))
+        self.assertEqual(self.r.redact("id 1%s and %s9" % (account_id, account_id)),
+                         "id 1%s and %s9" % (account_id, account_id))
+        self.assertEqual(self.r.redact("[U:1:%s]" % account_id), "[U:1:%s]" % self.r.masked(account_id))
 
     def test_secret_scrub(self):
         share = self.r.secret_scrub

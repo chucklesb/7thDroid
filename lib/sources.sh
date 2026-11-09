@@ -130,6 +130,17 @@ detect_all() {
   { detect_steam; detect_droiddeck_gog; detect_heroic; detect_lutris; } | awk -F'\t' '!seen[$3]++'
 }
 
+# ff7_release_label VERSION -> how a person names that release (VERSION is 7th Heaven's FF7InstalledVersion)
+ff7_release_label() {
+  case $1 in
+    Steam) echo "Steam (2013 release)" ;;
+    SteamReRelease) echo "Steam (2026 release)" ;;
+    GOG) echo GOG ;;
+    Original98) echo "1998 PC release" ;;
+    *) echo "$1" ;;
+  esac
+}
+
 # ff7_version_for APPID EXE -> the FF7InstalledVersion 7th Heaven expects
 ff7_version_for() {
   local appid=$1 exe=$2 dir

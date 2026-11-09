@@ -62,7 +62,7 @@ list_backups() {
     mods=$(manifest_value "$file" MODS_KB)
     label="$date - 7th Heaven ${tag:-?}"
     if [ -n "$mods" ]; then
-      label+=", with mods ($(awk -v k="$mods" 'BEGIN { printf "%.1f", k / 1048576 }') GB)"
+      label+=", with mods ($(human_size "$mods"))"
     else
       label+=", without mods"
     fi
@@ -86,9 +86,14 @@ ask_backup_mods() {
   BACKUP_MODS=0
   kb=$(mods_kb)
   [ -n "$kb" ] || return 0
-  want_entry WANT_MODS "Include your mods ($(awk -v k="$kb" 'BEGIN { printf "%.1f", k / 1048576 }') GB) in the backup?" y \
+  want_entry WANT_MODS "Include your mods ($(human_size "$kb")) in the backup?" y \
     && BACKUP_MODS=1
   return 0
+}
+
+# backup_ok FILE - the whole backup reads back; what is wrong with it goes to the log
+backup_ok() {
+  python "$LIB_DIR/backup.py" verify "$1"
 }
 
 # ask_backup -> BACKUP_WANT and BACKUP_MODS, for an install that is about to change or go
@@ -148,6 +153,12 @@ make_backup() {
     return 1
   fi
   rm -f -- "$manifest"
+  # read back at once, so a backup cut short (a full card, say) is never offered for a restore
+  if ! backup_ok "$file"; then
+    rm -f -- "$file"
+    warn "The backup could not be checked after saving (is $dir full?), so it was removed."
+    return 1
+  fi
   BACKUP_FILE=$file
   ok "Backed up to $file"
 }
@@ -165,7 +176,8 @@ choose_backup() {
   printf -v "$__var" '%s' "${lines[$pick]%%$'\t'*}"
 }
 
-# restore_backup FILE - into the install in the current variables (COMPATDATA, FF7_VERSION, GAME_DIR)
+# restore_backup FILE - into the install in the current variables (COMPATDATA, FF7_VERSION, GAME_DIR).
+# Returns 2, having changed nothing, when the backup is damaged or incomplete.
 restore_backup() {
   local file=$1 parts version workshop lib game save status
   step "Restoring a backup"
@@ -174,6 +186,10 @@ restore_backup() {
   workshop=$(seventh_workshop) game=$(ff7_game_dir) save=$(ff7_save_dir)
   info "Restoring $file"
   [ "$DRY_RUN" = 1 ] && return 0
+  if ! backup_ok "$file"; then
+    warn "This backup is damaged or incomplete, so nothing was restored. Choose another backup."
+    return 2
+  fi
   wait_prefix_idle "$COMPATDATA" 60 || { warn "Something is still running in 7th Heaven's prefix. Close 7th Heaven and FF7 first."; return 1; }
 
   python "$LIB_DIR/backup.py" settings "$file" "$(ffnx_settings_xml "$COMPATDATA")" || { warn "Could not restore 7th Heaven's settings."; return 1; }
@@ -203,7 +219,7 @@ restore_backup() {
 
   version=$(manifest_value "$file" FF7_VERSION)
   if [ -n "$version" ] && [ "$version" != "$FF7_VERSION" ]; then
-    warn "This backup's saves are from the $version release of FF7; this install uses $FF7_VERSION."
+    warn "This backup's saves are from FF7's $(ff7_release_label "$version"); this install uses $(ff7_release_label "$FF7_VERSION")."
     if ask_yn "Restore those saves anyway? Saves don't always carry over between releases." n; then version=$FF7_VERSION; fi
   fi
   if [ -z "$version" ] || [ "$version" = "$FF7_VERSION" ]; then

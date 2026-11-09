@@ -12,6 +12,10 @@ addresses and LAN addresses, and token-bearing URL parts and headers.
 
 learn_from_runtime(ROOT) learns account names and the device's own addresses as DroidDeck does, from
 ROOT (/ inside DroidDeck's Linux, or REDACT_ROOT).
+
+One addition to DroidDeck's rules: the account IDs of the SteamIDs in loginusers.vdf (the number in
+Steam's userdata/<id> folders, "for user <id>", "Account ID: <id>") are masked like SteamID3s, since
+Steam's own logs are full of them.
 """
 import codecs
 import os
@@ -68,6 +72,8 @@ ACCOUNT_KV = re.compile(
 LOGIN_KV = re.compile(r"(?i)(?<![A-Za-z0-9_])(login)(\s*=\s*|[\"']\s*[=:]\s*|[\"']\s+)" + ACCOUNT_VALUE, A)
 LAN_IPV4 = re.compile(r"(?<![\d.])(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01])|169\.254)\.\d{1,3}\.\d{1,3}(?!\.?\d)", A)
 ACCOUNT_FIELD = re.compile(r"\"(AccountName|PersonaName)\"\s+\"([^\"]*)\"", A)
+STEAMID64_KEY = re.compile(r"\"(7656119\d{10})\"", A)
+STEAMID64_BASE = 76561197960265728
 
 # SecretScrub
 URL = re.compile(r"[A-Za-z][A-Za-z0-9+.\-]*://[^\s\"'<>]+", A)
@@ -82,8 +88,13 @@ SHARE_MARK = "<redacted:token>"
 
 
 class Learned:
-    def __init__(self, regex, needs):
-        self.regex, self.needs = regex, needs
+    def __init__(self, regex, needs, mark="<redacted:account>"):
+        self.regex, self.needs, self.mark = regex, needs, mark
+
+
+def masked(digits):
+    """Masks all but the last 4 digits, as DroidDeck masks a SteamID3's account number."""
+    return "*" * (len(digits) - 4) + digits[-4:] if len(digits) > 4 else digits
 
 
 accounts = []
@@ -104,7 +115,7 @@ def bounded_text(path):
 
 def learn_accounts(*login_users):
     global accounts
-    names, unread = [], False
+    names, ids, unread = [], [], False
     for path in login_users:
         if not os.path.isfile(path):
             continue
@@ -121,8 +132,18 @@ def learn_accounts(*login_users):
                 break
             if name not in names:
                 names.append(name)
+        for match in STEAMID64_KEY.finditer(text):
+            account_id = str(int(match.group(1)) - STEAMID64_BASE)
+            if len(account_id) < 5:
+                continue
+            if len(ids) >= MAX_LEARNED_ACCOUNTS:
+                unread = True
+                break
+            if account_id not in ids:
+                ids.append(account_id)
     learned = [Learned(re.compile(r"(?i)(?<![A-Za-z0-9_])" + re.escape(name) + r"(?![A-Za-z0-9_])", A),
                        name.lower() if all(ord(c) < 0x80 for c in name) else None) for name in names]
+    learned += [Learned(re.compile(r"(?<![0-9])" + i + r"(?![0-9])", A), i, masked(i)) for i in ids]
     if unread:
         seen, merged = set(), []
         for item in learned + accounts:
@@ -300,8 +321,7 @@ def quoted(value):
 
 
 def steamid3(m):
-    i = m.group(1)
-    return "[U:1:%s]" % ("*" * (len(i) - 4) + i[-4:] if len(i) > 4 else i)
+    return "[U:1:%s]" % masked(m.group(1))
 
 
 def redact(line):
@@ -352,7 +372,7 @@ def redact(line):
             out.set(LOGIN_KV.sub(lambda m: m.group(1) + m.group(2) + quoted(m.group(3)), out.text))
         for r in accounts:
             if r.needs is None or out.has(r.needs):
-                out.set(r.regex.sub("<redacted:account>", out.text))
+                out.set(r.regex.sub(r.mark, out.text))
         if "@" in out.text:
             text = out.text
             out.set(EMAIL.sub(lambda m: m.group() if is_hidl_loader_diagnostic(text, m) else "<redacted:email>", text))

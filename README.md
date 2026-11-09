@@ -67,9 +67,10 @@ Without that, the GOG installer stops with "File not fpund". 7thDroid passes the
   - 7thDroid also offers a backup before **Update or repair** and before uninstalling, and offers to restore one after a fresh install.
   - **Restore a backup** puts everything back into the current install, keeping its game and mod-library locations. Saves from a different FF7 release are left out unless you ask for them, since they don't always carry over.
   - FFNx settings restored before FFNx is installed apply after your first play, like 7thDroid's other FFNx settings.
+  - Each backup is read back right after it is saved, and again before a restore changes anything, so a damaged or incomplete one (from a full card, say) is caught instead of half-restored.
   - Backups are never deleted automatically; remove old ones in Android's Documents folder.
 - **Logs:** **Save logs** (in the menu even before 7th Heaven is installed) gathers, in one `.tar` in `Documents/7thDroid Logs`:
-  - DroidDeck's session logs (it keeps the last three sessions, desktop and Steam alike), and its recent tool and store logs;
+  - DroidDeck's three newest session logs (desktop, Steam and app sessions alike), and its recent tool and store logs;
   - 7thDroid's install logs (the last three runs) and launch logs (the last two launches);
   - 7th Heaven's `applog.txt`, its settings and its installer log;
   - `FFNx.log`, `FFNx.toml` and `AppLoader.log` from the game folder;
@@ -138,6 +139,7 @@ Without a task option the script shows its menu. A task option runs that task on
 | `--mods`, `--no-mods` | Include the mods in a backup, or leave them out, without asking. |
 | `--no-backup` | Don't offer a backup before updating or uninstalling, or a restore after a fresh install. |
 | `--winetricks-dinput` | Also run winetricks' `dinput` verb, if a Proton build that ships protonfixes is installed (e.g. DroidDeck-Proton). |
+| `--update` | With `--install` over an existing 7th Heaven, run its installer again without asking (the menu's **Update or repair**). |
 | `--reinstall` | Run every step again. |
 | `--yes` | Accept every default without asking. |
 | `--dry-run` | Show what would run without changing anything. |

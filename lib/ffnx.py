@@ -57,8 +57,14 @@ def windows_to_linux(path, drive_c):
 
 
 def game_folder(settings, drive_c):
+    """FF7Exe's folder, or ff7/workingdir in it: the 2026 and GOG releases' FFVII.exe is a launcher, and
+    7th Heaven moves FF7Exe to ff7/workingdir only on the next Play (after a fresh install or an update)."""
     exe = windows_to_linux(read_settings(settings)["FF7Exe"], drive_c)
-    return os.path.dirname(exe) if exe else None
+    if not exe:
+        return None
+    folder = os.path.dirname(exe)
+    working = os.path.join(folder, "ff7", "workingdir")
+    return working if os.path.isdir(working) else folder
 
 
 def update(text, steam):

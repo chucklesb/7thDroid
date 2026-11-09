@@ -64,6 +64,8 @@ Options:
   --no-backup                      Don't offer a backup before updating or uninstalling, or a restore
                                    after a fresh install
   --winetricks-dinput              Also run winetricks' dinput verb, when a Proton with protonfixes exists
+  --update                         With --install over an existing 7th Heaven: run its installer again
+                                   (update or repair) without asking
   --reinstall                      Run every step again, even ones that look done
   --yes                            Accept every default without asking
   --dry-run                        Print what would run without changing anything
@@ -72,7 +74,7 @@ EOF
 }
 
 TASK='' ARGS=("$@")
-SEVENTH_CHANNEL='' SOURCES=() GAME_DIR='' REINSTALL=0 WINETRICKS_DINPUT=0
+SEVENTH_CHANNEL='' SOURCES=() GAME_DIR='' REINSTALL=0 UPDATE_SEVENTH=0 WINETRICKS_DINPUT=0
 WANT_GAME_COPY='' WANT_MODS='' NO_BACKUP=0 RESTORE_FILE=''
 CD_DISCS=() CD_DRIVES=()
 
@@ -102,6 +104,7 @@ while [ $# -gt 0 ]; do
     --no-copy-game) WANT_GAME_COPY=0 ;;
     --winetricks-dinput) WINETRICKS_DINPUT=1 ;;
     --reinstall) REINSTALL=1 ;;
+    --update) UPDATE_SEVENTH=1 ;;
     --yes|-y) ASSUME_YES=1 ;;
     --dry-run) DRY_RUN=1 ;;
     -h|--help) usage; exit 0 ;;
@@ -173,7 +176,13 @@ Your backup is $BACKUP_FILE. Install 7th Heaven again to restore it.}" ;;
     [ -f "$RESTORE_FILE" ] || die "$RESTORE_FILE does not exist."
     ask_yn "Restore the backup from $(manifest_value "$RESTORE_FILE" BACKUP_DATE)? It replaces your FF7 saves, 7th Heaven settings and profiles, FFNx settings and, if it has them, your mods." y \
       || { info "Nothing was restored."; exit 1; }
-    restore_backup "$RESTORE_FILE" || die "The backup could not be fully restored. See the log."
+    status=0
+    restore_backup "$RESTORE_FILE" || status=$?
+    case $status in
+      0) ;;
+      2) die "This backup is damaged or incomplete, so nothing was restored. Choose another backup." ;;
+      *) die "The backup could not be fully restored. See the log." ;;
+    esac
     ui_done "The backup from $(manifest_value "$RESTORE_FILE" BACKUP_DATE) is restored." ;;
   update-ffnx)
     load_state || die "No earlier install found ($STATE_FILE). Run the full installer first."

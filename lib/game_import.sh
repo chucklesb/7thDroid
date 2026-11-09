@@ -242,14 +242,14 @@ ask_game_copy() {
     return 0
   fi
   need=$(du -sk "$GAME_DIR" 2>/dev/null | cut -f1)
-  size=$(awk -v k="${need:-0}" 'BEGIN { printf "%.1f", k / 1048576 }')
-  want_entry WANT_GAME_COPY "Copy FINAL FANTASY VII ($size GB) into 7th Heaven's prefix, so 7th Heaven never changes the original game files?" \
+  size=$(human_size "${need:-0}")
+  want_entry WANT_GAME_COPY "Copy FINAL FANTASY VII ($size) into 7th Heaven's prefix, so 7th Heaven never changes the original game files?" \
     || return 0
   where=$compatdata
   while [ ! -d "$where" ] && [ "$where" != / ]; do where=$(dirname "$where"); done
   free=$(df -Pk "$where" 2>/dev/null | awk 'NR == 2 { print $4 }')
   if [ -n "$free" ] && [ "$free" -lt $((${need:-0} + 512 * 1024)) ]; then
-    warn "There isn't room for a $size GB copy next to 7th Heaven's prefix."
+    warn "There isn't room for a $size copy next to 7th Heaven's prefix."
     ask_yn "Use the original game files instead?" y || die "Not enough space to copy the game. Free some space and try again."
     return 0
   fi
@@ -265,7 +265,7 @@ copy_game() {
     reuse) info "Using the copy of the game already in 7th Heaven's prefix." ;;
     copy)
       step "Copying FINAL FANTASY VII"
-      info "Copying the game ($GAME_COPY_SIZE GB) to $dest. This takes a few minutes."
+      info "Copying the game ($GAME_COPY_SIZE) to $dest. This takes a few minutes."
       if [ "$DRY_RUN" != 1 ]; then
         rm -rf -- "$dest.part"
         mkdir -p "$dest.part"

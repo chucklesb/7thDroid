@@ -15,7 +15,7 @@ show_warning() {
 
 # Every question comes first; once the work starts, only the GOG or CD installer's own windows remain.
 run_install() {
-  local labels line pick previous steam_note restore_file
+  local labels line pick previous steam_note restore_file status installed_for
   ensure_droiddeck_proton
 
   step "Finding FINAL FANTASY VII"
@@ -66,7 +66,12 @@ run_install() {
   if [ -f "$STATE_FILE" ] && [ -f "$(seventh_exe "$COMPATDATA")" ]; then
     ask_backup
   elif [ "$NO_BACKUP" != 1 ] && [ "$ASSUME_YES" != 1 ]; then
-    choose_backup restore_file "Restore a backup when the install is done?" "Don't restore" || true
+    # checked now, so a damaged backup is found before the install rather than after it
+    while choose_backup restore_file "Restore a backup when the install is done?" "Don't restore" \
+          && [ -n "$restore_file" ] && ! backup_ok "$restore_file"; do
+      pause "That backup is damaged or incomplete, so it can't be restored. Choose another one."
+      restore_file=''
+    done
   fi
 
   if [ "$BACKUP_WANT" = 1 ]; then
@@ -110,8 +115,13 @@ run_install() {
   [ "$DRY_RUN" = 1 ] || save_state SOURCE_KIND APPID GAME_DIR GAME_EXE GAME_COPY COMPATDATA FF7_VERSION SEVENTH_CHANNEL SEVENTH_TAG
   remove_old_entries
   if [ -n "$restore_file" ]; then
-    restore_backup "$restore_file" \
-      || warn "The backup could not be fully restored; see the log. \"Restore a backup\" in $APP_NAME's menu tries again."
+    status=0
+    restore_backup "$restore_file" || status=$?
+    case $status in
+      0) ;;
+      2) warn "Nothing was restored: the backup is damaged or incomplete. \"Restore a backup\" in $APP_NAME's menu can restore another one." ;;
+      *) warn "The backup could not be fully restored; see the log. \"Restore a backup\" in $APP_NAME's menu tries again." ;;
+    esac
   fi
   if [ -n "$(ff7_steam_appid)" ]; then
     step "Adding 7th Heaven to Steam"
@@ -119,7 +129,8 @@ run_install() {
   fi
 
   step "Done"
-  ok "7th Heaven $SEVENTH_TAG is installed for $FF7_VERSION FINAL FANTASY VII."
+  installed_for="7th Heaven $SEVENTH_TAG is installed for FINAL FANTASY VII, $(ff7_release_label "$FF7_VERSION")."
+  ok "$installed_for"
   info "Start it from $APP_NAME's menu."
   steam_note=''
   if [ -n "$(ff7_steam_appid)" ]; then
@@ -130,7 +141,7 @@ For Steam achievements, choose \"Launch 7th Heaven with Steam\" in $APP_NAME's m
   fi
   info "Prefix: $COMPATDATA"
   info "Log: $LOG_FILE"
-  ui_done "7th Heaven $SEVENTH_TAG is installed for $FF7_VERSION FINAL FANTASY VII.$steam_note"
+  ui_done "$installed_for$steam_note"
 }
 
 # Which FF7 release GAME_EXE is, asked only when nothing about the game tells.
