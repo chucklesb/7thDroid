@@ -41,6 +41,14 @@ write_launcher() {
 # 7th Heaven loads mods through a dinput.dll beside the game, which Wine must prefer to its own.$why
 export WINEDLLOVERRIDES="dinput=n,b\${WINEDLLOVERRIDES:+;\$WINEDLLOVERRIDES}"
 proton_run=\$(command -v droiddeck-proton-run || echo $(printf '%q' "$PROTON_RUN"))
+# What 7th Heaven and Proton print goes to the launch log; the previous launch's is kept beside it.
+log=$(printf '%q' "$STATE_DIR/launch.log")
+mkdir -p "\${log%/*}"
+[ -f "\$log" ] && mv -f -- "\$log" "\$log.1"
+exec >>"\$log" 2>&1
+how="from $APP_NAME or a shell"
+[ -n "\${SteamGameId:-}" ] && how="by Steam (game \$SteamGameId)"
+echo "== \$(date '+%Y-%m-%d %H:%M:%S') 7th Heaven started \$how"
 exec "\$proton_run" $options$(printf '%q' "$exe") "\$@"
 EOF
   chmod +x "$LAUNCHER"

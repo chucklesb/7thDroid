@@ -20,6 +20,12 @@ ASSETS_DIR=$ROOT_DIR/assets
 . "$LIB_DIR/prefix.sh"
 # shellcheck source=lib/seventh_heaven.sh
 . "$LIB_DIR/seventh_heaven.sh"
+# shellcheck source=lib/ffnx.sh
+. "$LIB_DIR/ffnx.sh"
+# shellcheck source=lib/backup.sh
+. "$LIB_DIR/backup.sh"
+# shellcheck source=lib/logs.sh
+. "$LIB_DIR/logs.sh"
 # shellcheck source=lib/shortcuts.sh
 . "$LIB_DIR/shortcuts.sh"
 # shellcheck source=lib/uninstall.sh
@@ -34,10 +40,16 @@ usage() {
 Usage: bash 7thdroid.sh [task] [options]
 
 With no task, 7thDroid shows its menu: Install 7th Heaven until it is installed, then launching,
-updating, the log and uninstalling. A task runs on its own instead:
+updating, backing up and restoring, the logs and uninstalling. A task runs on its own instead:
 
   --install                        Install 7th Heaven, or update or repair it (--yes implies this)
   --steam-shortcut                 Add 7th Heaven's Steam entry, for "Launch 7th Heaven with Steam"
+  --update-ffnx                    Update FFNx in the game folder if it is too old for 7th Heaven
+  --backup                         Back up FF7's saves, 7th Heaven's settings and profiles, FFNx's
+                                   settings and (asked) the mods, to Android's Documents folder
+  --restore [FILE]                 Restore a backup (asked which when FILE is left out)
+  --save-logs                      Save DroidDeck's, 7thDroid's, 7th Heaven's and FFNx's logs, redacted,
+                                   in one file in Android's Documents folder
   --uninstall                      Remove 7th Heaven's prefix, launcher, Steam entry and downloads
 
 Options:
@@ -48,6 +60,9 @@ Options:
   --game-dir DIR                   Where a GOG installer puts the game (default ~/Games/FINAL FANTASY VII)
   --copy-game / --no-copy-game     Copy (or don't) an installed game into 7th Heaven's prefix, so the
                                    original is never changed (asked when not given)
+  --mods / --no-mods               Include (or leave out) the mods in a backup (asked when not given)
+  --no-backup                      Don't offer a backup before updating or uninstalling, or a restore
+                                   after a fresh install
   --winetricks-dinput              Also run winetricks' dinput verb, when a Proton with protonfixes exists
   --reinstall                      Run every step again, even ones that look done
   --yes                            Accept every default without asking
@@ -58,15 +73,25 @@ EOF
 
 TASK='' ARGS=("$@")
 SEVENTH_CHANNEL='' SOURCES=() GAME_DIR='' REINSTALL=0 WINETRICKS_DINPUT=0
-WANT_GAME_COPY=''
+WANT_GAME_COPY='' WANT_MODS='' NO_BACKUP=0 RESTORE_FILE=''
 CD_DISCS=() CD_DRIVES=()
 
-# shellcheck disable=SC2034 # WANT_GAME_COPY is read by name in want_entry
+# shellcheck disable=SC2034 # WANT_GAME_COPY and WANT_MODS are read by name in want_entry
 while [ $# -gt 0 ]; do
   case $1 in
     --install) TASK=install ;;
     --steam-shortcut) TASK=steam-shortcut ;;
+    --update-ffnx) TASK=update-ffnx ;;
     --uninstall) TASK=uninstall ;;
+    --backup) TASK=backup ;;
+    --save-logs) TASK='save-logs' ;;
+    --restore)
+      TASK=restore
+      case ${2:-} in ''|-*) ;; *) RESTORE_FILE=$2; shift ;; esac ;;
+    --restore=*) TASK=restore RESTORE_FILE=${1#*=} ;;
+    --mods) WANT_MODS=1 ;;
+    --no-mods) WANT_MODS=0 ;;
+    --no-backup) NO_BACKUP=1 ;;
     --version) SEVENTH_CHANNEL=${2:?--version needs a value}; shift ;;
     --version=*) SEVENTH_CHANNEL=${1#*=} ;;
     --source) SOURCES+=("${2:?--source needs a path}"); shift ;;
@@ -97,6 +122,8 @@ if [ -z "$TASK" ]; then
   exit 0
 fi
 
+# Saving logs keeps a log of its own, so install.log stays the last install's.
+[ "$TASK" = save-logs ] && LOG_FILE=$STATE_DIR/save-logs.log
 start_log
 ui_progress_start
 trap 'ui_progress_stop; finish_log' EXIT
@@ -104,6 +131,16 @@ printf '%s%s%s - 7th Heaven for FINAL FANTASY VII on DroidDeck\n' "$C_BOLD" "$AP
 [ "$TASK" = install ] && show_warning
 info "Log: $LOG_FILE"
 [ "$DRY_RUN" = 1 ] && info "Dry run: nothing will be changed."
+
+# Saving logs needs nothing from DroidDeck: a broken setup is when logs matter most.
+if [ "$TASK" = save-logs ]; then
+  load_state 2>/dev/null || true
+  save_logs || die "The logs could not be saved."
+  ui_done "Logs saved to $LOGS_FILE
+
+Tokens, passwords, account names, emails, Steam IDs and network addresses were removed. Even so, look through the files before you share them."
+  exit 0
+fi
 
 step "Checking the environment"
 preflight
@@ -113,13 +150,35 @@ DEDICATED=$(compatdata_for "$PREFIX_ID")
 
 case $TASK in
   uninstall)
-    uninstall && ui_done "7th Heaven is uninstalled. Your FF7 game files were not touched." ;;
+    uninstall && ui_done "7th Heaven is uninstalled. Your FF7 game files were not touched.${BACKUP_FILE:+
+
+Your backup is $BACKUP_FILE. Install 7th Heaven again to restore it.}" ;;
   steam-shortcut)
     load_state || die "No earlier install found ($STATE_FILE). Run the full installer first."
     [ "$COMPATDATA" = "$DEDICATED" ] || die "The last install was made by an older $APP_NAME. Run the full installer once."
     write_launcher "$(seventh_exe "$COMPATDATA")" "$(ff7_steam_appid)"
     step "Adding 7th Heaven to Steam"
     add_steam_shortcut ask || exit 1 ;;
+  backup)
+    load_state || die "No 7th Heaven install to back up ($STATE_FILE)."
+    ask_backup_mods
+    make_backup || die "The backup failed. See the log."
+    ui_done "7th Heaven is backed up to $BACKUP_FILE" ;;
+  restore)
+    load_state || die "7th Heaven isn't installed. Install it first; the installer offers to restore a backup."
+    if [ -z "$RESTORE_FILE" ]; then
+      choose_backup RESTORE_FILE "Which backup should be restored?" \
+        || die "There are no backups in $(backup_dir)."
+    fi
+    [ -f "$RESTORE_FILE" ] || die "$RESTORE_FILE does not exist."
+    ask_yn "Restore the backup from $(manifest_value "$RESTORE_FILE" BACKUP_DATE)? It replaces your FF7 saves, 7th Heaven settings and profiles, FFNx settings and, if it has them, your mods." y \
+      || { info "Nothing was restored."; exit 1; }
+    restore_backup "$RESTORE_FILE" || die "The backup could not be fully restored. See the log."
+    ui_done "The backup from $(manifest_value "$RESTORE_FILE" BACKUP_DATE) is restored." ;;
+  update-ffnx)
+    load_state || die "No earlier install found ($STATE_FILE). Run the full installer first."
+    update_old_ffnx "$COMPATDATA" || die "FFNx could not be updated. In 7th Heaven, Settings > General Settings > FFNx: Check for Updates updates it too."
+    ;;
   install)
     run_install ;;
 esac
