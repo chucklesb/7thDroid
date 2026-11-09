@@ -585,6 +585,25 @@ class RedactTest(unittest.TestCase):
         self.r.learn_from_runtime(root)
         self.assertEqual(self.r.redact("armplayer x64player"), "<redacted:account> <redacted:account>")
 
+    def test_learned_account_ids(self):
+        # 7thDroid's addition: the account IDs of loginusers.vdf's SteamIDs, as Steam's logs write them.
+        root = self.dir.name
+        self.file("root/.local/share/Steam/config/loginusers.vdf",
+                  '"users" { "76561198012341234" { "AccountName" "armplayer" } }')
+        self.r.learn_from_runtime(root)
+        account_id = str(76561198012341234 - 76561197960265728)
+        for line, want in (
+                ("Flushed store 'userlocal' to '/root/.local/share/Steam/userdata/%s/config/localconfig.vdf'",
+                 "Flushed store 'userlocal' to '/root/.local/share/Steam/userdata/%s/config/localconfig.vdf'"),
+                ("[AppID 3837340] AutoCloud force-restoring files for user %s in root",
+                 "[AppID 3837340] AutoCloud force-restoring files for user %s in root"),
+                ("Account ID: %s", "Account ID: %s")):
+            self.assertEqual(self.r.redact(line % account_id), want % self.r.masked(account_id))
+        self.assertNotIn(account_id, self.r.masked(account_id))
+        self.assertEqual(self.r.redact("id 1%s and %s9" % (account_id, account_id)),
+                         "id 1%s and %s9" % (account_id, account_id))
+        self.assertEqual(self.r.redact("[U:1:%s]" % account_id), "[U:1:%s]" % self.r.masked(account_id))
+
     def test_secret_scrub(self):
         share = self.r.secret_scrub
         for line in ("0024:trace:seh:dispatch_exception code=406d1388 flags=0 addr=00006FFFFFC0A6E8",
