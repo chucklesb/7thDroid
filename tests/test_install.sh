@@ -30,7 +30,7 @@ fixture() {
   export DROIDDECK_INNOEXTRACT=$T/none DROIDDECK_MSITOOLS=$T/none
   export DROIDDECK_APPS_DIR=$T/opt/droiddeck-apps
   export DROIDDECK_BIN=$DD_BIN DROIDDECK_PROTON_EXTRA=$REPO/tests/stubs/droiddeck-proton-extra
-  export SEVENTH_API=file://$REPO/tests/fixtures/7th-heaven
+  export SEVENTH_API=file://$REPO/tests/fixtures/7th-heaven FFNX_API=file://$REPO/tests/fixtures/ffnx
   unset STUB_PROTON_EXTRA_FAIL DROIDDECK_STEAM_SHORTCUTS STUB_INNO_LAYOUT
   mkdir -p "$STEAM_ROOT/steamapps" "$DROIDDECK_APPS_DIR" "$STEAM_ROOT/config" "$STEAM_ROOT/userdata/12345/config"
   cp "$REPO/tests/fixtures/config.vdf" "$STEAM_ROOT/config/config.vdf"
@@ -77,6 +77,23 @@ steam_game() { # LIBRARY APPID INSTALLDIR EXE
 
 installer() { bash "$REPO/7thdroid.sh" --install --yes --version stable --no-copy-game "$@" > "$T/out.log" 2>&1; }
 settings() { cat "$1/pfx/drive_c/7th Heaven/7thWorkshop/settings.xml"; }
+
+# old_ffnx DIR - FFNx 1.24 as 7th Heaven 4.5 installed it on the first Play: steam_api.dll, not
+# FFNx_steam_api.dll. Also puts FFNx 1.25.2 (the fixture's newest) in the download cache.
+old_ffnx() {
+  rm -f "$1/FFNx_steam_api.dll"
+  echo old > "$1/AF3DN.P"
+  touch "$1/steam_api.dll"
+  printf 'renderer_backend = 5\nenable_steam_achievements = false\n' > "$1/FFNx.toml"
+  python3 -c '
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1], "w") as z:
+    z.writestr("AF3DN.P", "FFNx 1.25.2")
+    z.writestr("FFNx_steam_api.dll", "api")
+    z.writestr("shaders/a.bin", "shader")
+    z.writestr("FFNx.toml", "# FFNx config file\r\nrenderer_backend = 0\r\nenable_steam_achievements = false\r\nnew_key = true\r\n")
+' "$XDG_CACHE_HOME/7thdroid/FFNx-Steam-v1.25.2.0.zip" || exit 2
+}
 
 # windowed SCRIPT ANSWER... -> runs SCRIPT (with ARGS) as the AppImage does: no terminal, the zenity stub
 windowed() {
@@ -367,6 +384,37 @@ before=$(other_prefixes)
 check "installer succeeds" installer
 check "says the old prefix is left alone" grep -qF "older 7thDroid installed 7th Heaven into $STEAM_ROOT/steamapps/compatdata/39140" "$T/out.log"
 check "old prefix untouched" test "$(other_prefixes)" = "$before"
+cleanup
+
+echo "An FFNx too old for 7th Heaven 4.6 is updated"
+fixture
+mkdir -p "$T/FF7"
+touch "$T/FF7/FFVII.exe"
+check "installer succeeds" installer --source "$T/FF7"
+check "no FFNx yet: nothing to update" bash -c "! grep -q 'Updating FFNx' '$T/out.log'"
+old_ffnx "$T/FF7"
+check "Update or repair succeeds" installer --source "$T/FF7"
+check "says why it updates FFNx" grep -q 'older than 7th Heaven needs (FFNx 1.25 or newer)' "$T/out.log"
+check "FFNx_steam_api.dll installed" test -f "$T/FF7/FFNx_steam_api.dll"
+check "the driver replaced" grep -qx 'FFNx 1.25.2' "$T/FF7/AF3DN.P"
+check "subfolders unpacked" test -f "$T/FF7/shaders/a.bin"
+check "the FFNx settings kept" grep -q '^renderer_backend = 5' "$T/FF7/FFNx.toml"
+check "new FFNx options added" grep -q '^new_key = true' "$T/FF7/FFNx.toml"
+check "the old FFNx.toml kept beside it" test -f "$T/FF7/FFNx.toml.7thdroid-bak"
+check "a current FFNx is left alone" bash -c "bash '$REPO/7thdroid.sh' --install --yes --version stable --no-copy-game --source '$T/FF7' > '$T/out.log' 2>&1 && ! grep -q 'Updating FFNx' '$T/out.log'"
+old_ffnx "$T/FF7"
+ARGS=()
+: > "$STUB_LOG"
+check "menu: launch with an old FFNx" windowed 7thdroid.sh 0
+check "FFNx updated before the launch" test -f "$T/FF7/FFNx_steam_api.dll"
+check "then 7th Heaven started" grep -q $'^waitforexitandrun\t.*\t7th Heaven.exe' "$STUB_LOG"
+old_ffnx "$T/FF7"
+rm -f "$XDG_CACHE_HOME/7thdroid/FFNx-Steam-v1.25.2.0.zip"
+export FFNX_API=file://$T/nowhere
+: > "$STUB_LOG"
+check "menu: launch when FFNx can't be updated" windowed 7thdroid.sh 0
+check "says how to update it in 7th Heaven" grep -qF 'FFNx:\ Check\ for\ Updates' "$T/zenity.log"
+check "7th Heaven not started into the error" bash -c "! grep -q '7th Heaven.exe' '$STUB_LOG'"
 cleanup
 
 echo "7th Heaven canary build"

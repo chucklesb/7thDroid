@@ -20,6 +20,8 @@ ASSETS_DIR=$ROOT_DIR/assets
 . "$LIB_DIR/prefix.sh"
 # shellcheck source=lib/seventh_heaven.sh
 . "$LIB_DIR/seventh_heaven.sh"
+# shellcheck source=lib/ffnx.sh
+. "$LIB_DIR/ffnx.sh"
 # shellcheck source=lib/shortcuts.sh
 . "$LIB_DIR/shortcuts.sh"
 # shellcheck source=lib/uninstall.sh
@@ -38,6 +40,7 @@ updating, the log and uninstalling. A task runs on its own instead:
 
   --install                        Install 7th Heaven, or update or repair it (--yes implies this)
   --steam-shortcut                 Add 7th Heaven's Steam entry, for "Launch 7th Heaven with Steam"
+  --update-ffnx                    Update FFNx in the game folder if it is too old for 7th Heaven
   --uninstall                      Remove 7th Heaven's prefix, launcher, Steam entry and downloads
 
 Options:
@@ -66,6 +69,7 @@ while [ $# -gt 0 ]; do
   case $1 in
     --install) TASK=install ;;
     --steam-shortcut) TASK=steam-shortcut ;;
+    --update-ffnx) TASK=update-ffnx ;;
     --uninstall) TASK=uninstall ;;
     --version) SEVENTH_CHANNEL=${2:?--version needs a value}; shift ;;
     --version=*) SEVENTH_CHANNEL=${1#*=} ;;
@@ -120,6 +124,10 @@ case $TASK in
     write_launcher "$(seventh_exe "$COMPATDATA")" "$(ff7_steam_appid)"
     step "Adding 7th Heaven to Steam"
     add_steam_shortcut ask || exit 1 ;;
+  update-ffnx)
+    load_state || die "No earlier install found ($STATE_FILE). Run the full installer first."
+    update_old_ffnx "$COMPATDATA" || die "FFNx could not be updated. In 7th Heaven, Settings > General Settings > FFNx: Check for Updates updates it too."
+    ;;
   install)
     run_install ;;
 esac

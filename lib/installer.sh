@@ -91,6 +91,8 @@ run_install() {
 
   step "Installing 7th Heaven"
   install_seventh_heaven "$COMPATDATA"
+  # before configure_seventh_heaven, while settings.xml still names the exe 7th Heaven itself chose
+  update_old_ffnx "$COMPATDATA" || warn "FFNx is too old for this 7th Heaven, which won't start FF7 until it's updated: Update or repair again, or use 7th Heaven's FFNx Check for Updates (Settings > General Settings)."
   configure_seventh_heaven "$COMPATDATA" "$GAME_EXE" "$FF7_VERSION"
 
   write_launcher "$(seventh_exe "$COMPATDATA")" "$(ff7_steam_appid)"

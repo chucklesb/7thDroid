@@ -1,5 +1,5 @@
-"""Tests for lib/regedit.py and lib/steam_shortcut.py. DROIDDECK_SRC (a DroidDeck checkout) enables the
-checks against DroidDeck's own code.
+"""Tests for lib/regedit.py, lib/steam_shortcut.py and lib/ffnx.py. DROIDDECK_SRC (a DroidDeck
+checkout) enables the checks against DroidDeck's own code.
 
     python3 -m unittest discover -s tests
 """
@@ -135,7 +135,7 @@ enable_steam_achievements = false # Steam Compatibility
 '''
 
 
-class FfnxTomlTest(unittest.TestCase):
+class FfnxTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
         self.drive_c = os.path.join(self.dir.name, "drive_c")
@@ -150,17 +150,31 @@ class FfnxTomlTest(unittest.TestCase):
     def tearDown(self):
         self.dir.cleanup()
 
-    def set_exe(self, exe):
+    def set_exe(self, exe, version="SteamReRelease", channel="Stable"):
         with open(self.settings, "w", encoding="utf-8-sig") as f:
             f.write('<?xml version="1.0" encoding="utf-8"?>\n<Settings xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n'
-                    '  <FF7Exe>%s</FF7Exe>\n</Settings>\n' % exe)
+                    '  <FF7Exe>%s</FF7Exe>\n  <FF7InstalledVersion>%s</FF7InstalledVersion>\n'
+                    '  <FFNxUpdateChannel>%s</FFNxUpdateChannel>\n</Settings>\n' % (exe, version, channel))
+
+    def tool(self, *args):
+        return subprocess.run([sys.executable, "-I", os.path.join(LIB, "ffnx.py")] + list(args),
+                              capture_output=True, text=True)
 
     def run_tool(self, steam):
-        return subprocess.run([sys.executable, "-I", os.path.join(LIB, "ffnx_toml.py"), self.settings, self.drive_c, steam]).returncode
+        return self.tool("settings", self.settings, self.drive_c, steam).returncode
+
+    def driver(self):
+        result = self.tool("driver", self.settings, self.drive_c)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout.rstrip("\n").split("\t")
 
     def read(self):
         with open(self.toml, newline="") as f:
             return f.read()
+
+    def touch(self, *names):
+        for name in names:
+            open(os.path.join(self.game, name), "w").close()
 
     def test_plain_launch(self):
         self.assertEqual(self.run_tool("0"), 0)
@@ -188,21 +202,82 @@ class FfnxTomlTest(unittest.TestCase):
         self.assertEqual(self.run_tool("1"), 0)
         self.assertIn("enable_steam_achievements = true", self.read())
 
+    def test_a_drive_of_the_prefix(self):
+        dosdevices = os.path.join(self.dir.name, "dosdevices")
+        os.makedirs(dosdevices)
+        try:
+            os.symlink(os.path.join(self.drive_c, "FINAL FANTASY VII"), os.path.join(dosdevices, "s:"))
+        except OSError:
+            self.skipTest("no symlinks here")
+        self.set_exe(r"S:\ff7\workingdir\ff7_en.exe")
+        self.assertEqual(self.run_tool("1"), 0)
+        self.assertIn("enable_steam_achievements = true", self.read())
+
     def test_no_ffnx_yet(self):
         os.remove(self.toml)
         self.assertEqual(self.run_tool("0"), 3)
         self.assertFalse(os.path.exists(self.toml))
 
     def test_exists_only_checks(self):
-        exists = [sys.executable, "-I", os.path.join(LIB, "ffnx_toml.py"), "--exists", self.settings, self.drive_c]
-        self.assertEqual(subprocess.run(exists).returncode, 0)
+        self.assertEqual(self.tool("exists", self.settings, self.drive_c).returncode, 0)
         self.assertEqual(self.read(), FFNX_TOML)
         os.remove(self.toml)
-        self.assertEqual(subprocess.run(exists).returncode, 3)
+        self.assertEqual(self.tool("exists", self.settings, self.drive_c).returncode, 3)
 
     def test_other_drive(self):
         self.set_exe(r"D:\ff7.exe")
         self.assertEqual(self.run_tool("0"), 1)
+
+    def test_driver_states(self):
+        self.assertEqual(self.driver(), [self.game, "none", "Stable", "FFNx-Steam"])
+        self.touch("AF3DN.P", "steam_api.dll")
+        self.assertEqual(self.driver()[1], "old")
+        self.touch("FFNx_steam_api.dll")
+        self.assertEqual(self.driver()[1], "current")
+
+    def test_driver_for_1998_and_canary(self):
+        self.set_exe(r"C:\FINAL FANTASY VII\ff7\workingdir\ff7.exe", "Original98", "Canary")
+        self.touch("AF3DN.P")
+        self.assertEqual(self.driver()[1:], ["none", "Canary", "FFNx-FF7_1998"])
+        self.touch("FFNx.dll")
+        self.assertEqual(self.driver()[1], "old")
+
+    def make_zip(self, entries):
+        import zipfile
+        path = os.path.join(self.dir.name, "FFNx-Steam-v9.zip")
+        with zipfile.ZipFile(path, "w") as z:
+            for name, data in entries.items():
+                z.writestr(name, data)
+        return path
+
+    def test_install_keeps_settings(self):
+        with open(self.toml, "w", newline="") as f:
+            f.write('renderer_backend = 5\nmod_path = "mods/#Textures" # where\ngone_key = 1\n')
+        self.touch("AF3DN.P", "steam_api.dll")
+        archive = self.make_zip({
+            "AF3DN.P": "new driver",
+            "FFNx_steam_api.dll": "api",
+            "shaders/": "",
+            "shaders/a.bin": "shader",
+            "FFNx.toml": '# FFNx config file\r\n# renderer_backend = 9\r\nrenderer_backend = 0 # backend\r\n'
+                         'mod_path = "mods/Textures"\r\nnew_key = true\r\n',
+        })
+        result = self.tool("install", archive, self.game)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with open(os.path.join(self.game, "AF3DN.P")) as f:
+            self.assertEqual(f.read(), "new driver")
+        self.assertTrue(os.path.isfile(os.path.join(self.game, "shaders", "a.bin")))
+        self.assertEqual(self.driver()[1], "current")
+        self.assertEqual(self.read(), '# FFNx config file\r\n# renderer_backend = 9\r\nrenderer_backend = 5 # backend\r\n'
+                                      'mod_path = "mods/#Textures"\r\nnew_key = true\r\n')
+        with open(self.toml + ".7thdroid-bak") as f:
+            self.assertIn("gone_key = 1", f.read())
+
+    def test_install_refuses_paths_outside_the_folder(self):
+        archive = self.make_zip({"AF3DN.P": "x", "../escaped.txt": "x"})
+        self.assertEqual(self.tool("install", archive, self.game).returncode, 1)
+        self.assertFalse(os.path.exists(os.path.join(self.game, "AF3DN.P")))
+        self.assertFalse(os.path.exists(os.path.join(os.path.dirname(self.game), "escaped.txt")))
 
 
 class WarningTest(unittest.TestCase):

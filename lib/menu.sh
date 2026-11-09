@@ -25,6 +25,7 @@ launch_with_steam() {
     run_task --steam-shortcut
     has_steam_shortcut || { pause "The Steam shortcut wasn't added, so 7th Heaven can't be started with Steam yet."; return; }
   fi
+  ready_to_launch || return
   apply_ffnx_settings 1
   info "Starting \"$LAUNCHER_NAME\" with Steam."
   steam_launch_shortcut && exit 0
@@ -36,8 +37,8 @@ launch_with_steam() {
 # on the first Play, resetting FFNx.toml, so until then there is nothing to set.
 apply_ffnx_settings() {
   local status=0
-  python "$LIB_DIR/ffnx_toml.py" "$COMPATDATA/pfx/drive_c/7th Heaven/7thWorkshop/settings.xml" \
-    "$COMPATDATA/pfx/drive_c" "$1" || status=$?
+  python "$LIB_DIR/ffnx.py" settings "$(ffnx_settings_xml "$COMPATDATA")" "$COMPATDATA/pfx/drive_c" "$1" \
+    || status=$?
   case $status in
     0) ;;
     3) info "FFNx is installed the first time you play; $APP_NAME's FFNx settings apply from the next launch." ;;
@@ -49,8 +50,15 @@ apply_ffnx_settings() {
 # Has FF7 been played through 7th Heaven yet? Until then there is no FFNx, so no Steam Compatibility to
 # turn on, and a Steam launch would start FF7 without achievements.
 ffnx_installed() {
-  python "$LIB_DIR/ffnx_toml.py" --exists "$COMPATDATA/pfx/drive_c/7th Heaven/7thWorkshop/settings.xml" \
-    "$COMPATDATA/pfx/drive_c" 2>/dev/null
+  python "$LIB_DIR/ffnx.py" exists "$(ffnx_settings_xml "$COMPATDATA")" "$COMPATDATA/pfx/drive_c" 2>/dev/null
+}
+
+# ready_to_launch - an FFNx too old for 7th Heaven is updated first; 7th Heaven would refuse to start FF7.
+ready_to_launch() {
+  [ "$(ffnx_state "$COMPATDATA")" = old ] || return 0
+  run_task --update-ffnx && return 0
+  pause "FFNx could not be updated, and 7th Heaven won't start FF7 with the old one. See the log. In 7th Heaven, Settings > General Settings > FFNx: Check for Updates updates it too."
+  return 1
 }
 
 run_menu() {
@@ -81,7 +89,10 @@ Launch 7th Heaven and play FF7 once first: 7th Heaven sets up its game driver th
     choose pick "7th Heaven ${SEVENTH_TAG:+$SEVENTH_TAG }is installed for ${FF7_VERSION:-FINAL FANTASY VII}.$note" "${labels[@]}"
     action=${actions[$pick]}
     case $action in
-      launch) apply_ffnx_settings 0; exec bash "$LAUNCHER" ;;
+      launch)
+        ready_to_launch || continue
+        apply_ffnx_settings 0
+        exec bash "$LAUNCHER" ;;
       steam) launch_with_steam ;;
       update) run_task --install ;;
       log)
