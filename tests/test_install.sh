@@ -708,7 +708,8 @@ export DROIDDECK_PROTON_RUN=$T/none
 ARGS=(--install)
 windowed 7thdroid.sh yes
 check "installer stops" test $? -ne 0
-check "the log is named once" test "$(grep '^error' "$T/zenity.log" | grep -o 'install\.log' | wc -l)" -le 1
+check "the log is named once" test "$(grep '^error' "$T/zenity.log" | grep -o 'install\.log' | wc -l)" -eq 1
+check "the error window points to Save logs" bash -c "grep '^error' '$T/zenity.log' | grep -q 'Save.*logs.*collects.*every.*log'"
 cleanup
 
 echo "Missing DroidDeck"
