@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # 7thDroid's menu, which the AppImage opens: Install 7th Heaven until it is installed, then launching,
-# updating or repairing, backing up and restoring, the log and uninstalling. Each task runs as its own 7thdroid.sh, so
+# updating or repairing, backing up and restoring, the logs and uninstalling. Each task runs as its own 7thdroid.sh, so
 # a task that fails or is cancelled ends there and the menu comes back.
 
 installed() {
@@ -71,9 +71,12 @@ run_menu() {
   while true; do
     COMPATDATA='' SOURCE_KIND='' SEVENTH_TAG='' FF7_VERSION=''
     if ! installed; then
-      choose pick "7th Heaven is not installed yet." "Install 7th Heaven" "Quit"
-      [ "$pick" = 0 ] || exit 0
-      run_task --install
+      choose pick "7th Heaven is not installed yet." "Install 7th Heaven" "Save logs" "Quit"
+      case $pick in
+        0) run_task --install ;;
+        1) run_task --save-logs ;;
+        *) exit 0 ;;
+      esac
       continue
     fi
     labels=("Launch 7th Heaven") actions=(launch) note=''
@@ -86,8 +89,8 @@ run_menu() {
 Launch 7th Heaven and play FF7 once first: 7th Heaven sets up its game driver then, and \"Launch 7th Heaven with Steam\" appears here after that."
       fi
     fi
-    labels+=("Update or repair 7th Heaven" "Back up 7th Heaven" "Restore a backup" "Show the last log" "Uninstall 7th Heaven" "Quit")
-    actions+=(update backup restore log uninstall quit)
+    labels+=("Update or repair 7th Heaven" "Back up 7th Heaven" "Restore a backup" "Show the last log" "Save logs" "Uninstall 7th Heaven" "Quit")
+    actions+=(update backup restore log logs uninstall quit)
     choose pick "7th Heaven ${SEVENTH_TAG:+$SEVENTH_TAG }is installed for ${FF7_VERSION:-FINAL FANTASY VII}.$note" "${labels[@]}"
     action=${actions[$pick]}
     case $action in
@@ -110,6 +113,7 @@ Launch 7th Heaven and play FF7 once first: 7th Heaven sets up its game driver th
         else
           less "$LOG_FILE" 2>/dev/null || cat "$LOG_FILE"
         fi ;;
+      logs) run_task --save-logs ;;
       uninstall) run_task --uninstall ;;
       *) exit 0 ;;
     esac

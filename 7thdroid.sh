@@ -24,6 +24,8 @@ ASSETS_DIR=$ROOT_DIR/assets
 . "$LIB_DIR/ffnx.sh"
 # shellcheck source=lib/backup.sh
 . "$LIB_DIR/backup.sh"
+# shellcheck source=lib/logs.sh
+. "$LIB_DIR/logs.sh"
 # shellcheck source=lib/shortcuts.sh
 . "$LIB_DIR/shortcuts.sh"
 # shellcheck source=lib/uninstall.sh
@@ -38,7 +40,7 @@ usage() {
 Usage: bash 7thdroid.sh [task] [options]
 
 With no task, 7thDroid shows its menu: Install 7th Heaven until it is installed, then launching,
-updating, backing up and restoring, the log and uninstalling. A task runs on its own instead:
+updating, backing up and restoring, the logs and uninstalling. A task runs on its own instead:
 
   --install                        Install 7th Heaven, or update or repair it (--yes implies this)
   --steam-shortcut                 Add 7th Heaven's Steam entry, for "Launch 7th Heaven with Steam"
@@ -46,6 +48,8 @@ updating, backing up and restoring, the log and uninstalling. A task runs on its
   --backup                         Back up FF7's saves, 7th Heaven's settings and profiles, FFNx's
                                    settings and (asked) the mods, to Android's Documents folder
   --restore [FILE]                 Restore a backup (asked which when FILE is left out)
+  --save-logs                      Save DroidDeck's, 7thDroid's, 7th Heaven's and FFNx's logs, redacted,
+                                   in one file in Android's Documents folder
   --uninstall                      Remove 7th Heaven's prefix, launcher, Steam entry and downloads
 
 Options:
@@ -80,6 +84,7 @@ while [ $# -gt 0 ]; do
     --update-ffnx) TASK=update-ffnx ;;
     --uninstall) TASK=uninstall ;;
     --backup) TASK=backup ;;
+    --save-logs) TASK='save-logs' ;;
     --restore)
       TASK=restore
       case ${2:-} in ''|-*) ;; *) RESTORE_FILE=$2; shift ;; esac ;;
@@ -117,6 +122,8 @@ if [ -z "$TASK" ]; then
   exit 0
 fi
 
+# Saving logs keeps a log of its own, so install.log stays the last install's.
+[ "$TASK" = save-logs ] && LOG_FILE=$STATE_DIR/save-logs.log
 start_log
 ui_progress_start
 trap 'ui_progress_stop; finish_log' EXIT
@@ -124,6 +131,16 @@ printf '%s%s%s - 7th Heaven for FINAL FANTASY VII on DroidDeck\n' "$C_BOLD" "$AP
 [ "$TASK" = install ] && show_warning
 info "Log: $LOG_FILE"
 [ "$DRY_RUN" = 1 ] && info "Dry run: nothing will be changed."
+
+# Saving logs needs nothing from DroidDeck: a broken setup is when logs matter most.
+if [ "$TASK" = save-logs ]; then
+  load_state 2>/dev/null || true
+  save_logs || die "The logs could not be saved."
+  ui_done "Logs saved to $LOGS_FILE
+
+Tokens, passwords, account names, emails, Steam IDs and network addresses were removed. Even so, look through the files before you share them."
+  exit 0
+fi
 
 step "Checking the environment"
 preflight

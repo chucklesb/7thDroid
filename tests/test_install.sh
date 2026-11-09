@@ -31,7 +31,7 @@ fixture() {
   export DROIDDECK_APPS_DIR=$T/opt/droiddeck-apps
   export DROIDDECK_BIN=$DD_BIN DROIDDECK_PROTON_EXTRA=$REPO/tests/stubs/droiddeck-proton-extra
   export SEVENTH_API=file://$REPO/tests/fixtures/7th-heaven FFNX_API=file://$REPO/tests/fixtures/ffnx
-  export SEVENTHDROID_BACKUP_DIR=$T/backups
+  export SEVENTHDROID_BACKUP_DIR=$T/backups SEVENTHDROID_LOGS_DIR=$T/logs DROIDDECK_LOG_DIR=$T/ddlogs REDACT_ROOT=$T
   unset STUB_PROTON_EXTRA_FAIL DROIDDECK_STEAM_SHORTCUTS STUB_INNO_LAYOUT
   mkdir -p "$STEAM_ROOT/steamapps" "$DROIDDECK_APPS_DIR" "$STEAM_ROOT/config" "$STEAM_ROOT/userdata/12345/config"
   cp "$REPO/tests/fixtures/config.vdf" "$STEAM_ROOT/config/config.vdf"
@@ -101,6 +101,15 @@ tar_names() { python3 -c 'import sys, tarfile; print("\n".join(tarfile.open(sys.
 backups() { find "$T/backups" -maxdepth 1 -name '7thDroid-*.tar' 2>/dev/null | sort; }
 # has_entries NAME... - each NAME is an entry of the backup listed in NAMES
 has_entries() { local n; for n in "$@"; do grep -qxF "$n" <<< "$NAMES" || return 1; done; }
+
+# tar_text FILE -> every entry of a tar, name line then contents, for searching
+tar_text() { python3 -c 'import sys, tarfile
+t = tarfile.open(sys.argv[1])
+for m in t.getmembers():
+    if m.isfile():
+        print("== " + m.name)
+        print(t.extractfile(m).read().decode("utf-8", "replace"))' "$1"; }
+log_bundles() { find "$T/logs" -maxdepth 1 -name '7thDroid-logs-*.tar' 2>/dev/null | sort; }
 
 # windowed SCRIPT ANSWER... -> runs SCRIPT (with ARGS) as the AppImage does: no terminal, the zenity stub
 windowed() {
@@ -302,7 +311,7 @@ EOF
 chmod +x "$T/steam-launch"
 export DROIDDECK_STEAM_LAUNCH=$T/steam-launch
 ARGS=()
-check "menu before the first play: Quit" windowed 7thdroid.sh 6
+check "menu before the first play: Quit" windowed 7thdroid.sh 7
 check "no Launch with Steam before FFNx exists" bash -c "grep -m1 '^list' '$T/zenity.log' | grep -vqF 'with\\ Steam\\ FALSE'"
 check "the menu says to play once first" bash -c "grep -m1 '^list' '$T/zenity.log' | grep -q 'appears.*here.*after.*that'"
 printf 'renderer_backend = 5\nenable_steam_achievements = false\n' > "$GAME/FFNx.toml"
@@ -532,6 +541,52 @@ check "says so" grep -q 'The backup failed, so nothing was removed' "$T/out.log"
 check "nothing removed" test -f "$(own_prefix)/pfx/drive_c/7th Heaven/7th Heaven.exe"
 cleanup
 
+echo "Save logs: every log, redacted"
+fixture
+steam_game "$STEAM_ROOT" 39140 "FINAL FANTASY VII" ff7_en.exe
+ARGS=()
+# the Install-only menu: Save logs
+check "menu: save logs before installing" windowed 7thdroid.sh 1
+check "a bundle without an install" bash -c "tar_text() { python3 -c 'import sys, tarfile; t = tarfile.open(sys.argv[1]); print(t.extractfile(\"info.txt\").read().decode())' \"\$1\"; }; tar_text \"\$(find '$T/logs' -name '*.tar' | head -n1)\" | grep -q '7th Heaven is not installed'"
+rm -f "$T/logs"/*.tar
+check "installer succeeds" installer
+check "a second run keeps the first run's log" bash -c "bash '$REPO/7thdroid.sh' --install --yes --version stable --no-copy-game --no-backup >/dev/null 2>&1 && test -f '$T/.local/state/7thdroid/install.log.1'"
+check "a third keeps two" bash -c "bash '$REPO/7thdroid.sh' --install --yes --version stable --no-copy-game --no-backup >/dev/null 2>&1 && test -f '$T/.local/state/7thdroid/install.log.2' -a ! -e '$T/.local/state/7thdroid/install.log.3'"
+CD=$(own_prefix)
+GAME="$STEAM_ROOT/steamapps/common/FINAL FANTASY VII"
+mkdir -p "$T/ddlogs/2026-11-09-01-desktop" "$T/ddlogs/2026-11-09-02-steam/steam" "$T/ddlogs/tools" "$T/ddlogs/not-a-session" \
+  "$T/root/.local/share/Steam/config"
+echo "start access_token=abcdef123456 for maskedplayer" > "$T/ddlogs/2026-11-09-01-desktop/session.log"
+printf '\177ELF\0\0\0' > "$T/ddlogs/2026-11-09-01-desktop/core"
+echo "SteamUI: OnLoginStateChange someone 2 1 0 0" > "$T/ddlogs/2026-11-09-02-steam/steam/connection_log.txt"
+echo "tool ran" > "$T/ddlogs/tools/droiddeck-epic.log"
+echo "not a session" > "$T/ddlogs/not-a-session/x.log"
+printf '"users" { "76561198000000001" { "AccountName" "maskedplayer" } }' > "$T/root/.local/share/Steam/config/loginusers.vdf"
+echo "7th Heaven started, password=hunter2hunter2" > "$CD/pfx/drive_c/7th Heaven/7thWorkshop/applog.txt"
+echo "FFNx 1.25.2 started, user 76561198012341234" > "$GAME/FFNx.log"
+: > "$STUB_LOG"
+check "menu: launch" windowed 7thdroid.sh 0
+check "menu: launch again" windowed 7thdroid.sh 0
+check "the launch log, with the previous one kept" test -f "$T/.local/state/7thdroid/launch.log" -a -f "$T/.local/state/7thdroid/launch.log.1"
+check "the launch log says how 7th Heaven was started" grep -q '7th Heaven started from 7thDroid or a shell' "$T/.local/state/7thdroid/launch.log"
+# menu: Save logs (after Launch, Update or repair, Back up, Restore, Show the last log)
+check "menu: save logs" windowed 7thdroid.sh 5
+L=$(log_bundles | tail -n1)
+check "one bundle in Documents' 7thDroid Logs" test "$(log_bundles | wc -l)" -eq 1
+NAMES=$(tar_names "$L")
+check "it has 7thDroid's, 7th Heaven's, FFNx's and DroidDeck's logs" has_entries info.txt index.txt 7thdroid/install.log \
+  7thdroid/install.log.1 7thdroid/launch.log 7thdroid/launch.log.1 7thdroid/install.env 7th-heaven/applog.txt \
+  7th-heaven/settings.xml game/FFNx.log droiddeck/2026-11-09-01-desktop/session.log \
+  droiddeck/2026-11-09-02-steam/steam/connection_log.txt droiddeck/tools/droiddeck-epic.log
+check "only DroidDeck's session folders" bash -c "! grep -q not-a-session <<< '$NAMES'"
+TEXT=$(tar_text "$L")
+check "binaries left out, and listed" grep -q $'droiddeck/2026-11-09-01-desktop/core\t7\tleft out: binary' <<< "$TEXT"
+check "no token, password, account name or Steam ID left" bash -c "! grep -qE 'abcdef123456|hunter2|maskedplayer|someone 2|76561198012341234' <<< \"\$1\"" _ "$TEXT"
+check "redacted, not dropped" grep -q 'access_token=<redacted:token> for <redacted:account>' <<< "$TEXT"
+check "info.txt describes the install" grep -q '^7th Heaven: 4.6.0 (stable)' <<< "$TEXT"
+check "save logs keeps its own log" test -f "$T/.local/state/7thdroid/save-logs.log"
+cleanup
+
 echo "7th Heaven canary build"
 fixture
 check "installer succeeds" bash -c "bash '$REPO/7thdroid.sh' --install --yes --version canary --source '$REPO/tests/fixtures/game' > '$T/out.log' 2>&1"
@@ -578,11 +633,11 @@ printf 'renderer_backend = 0\nenable_steam_achievements = true\n' > "$CD/pfx/dri
 check "menu: launch again" windowed 7thdroid.sh 0
 check "Direct3D 11 in place of Auto" grep -qx 'renderer_backend = 3' "$CD/pfx/drive_c/FINAL FANTASY VII/FFNx.toml"
 check "Steam Compatibility off" grep -qx 'enable_steam_achievements = false' "$CD/pfx/drive_c/FINAL FANTASY VII/FFNx.toml"
-check "menu: uninstall declined" windowed 7thdroid.sh 5 cancel cancel 6
+check "menu: uninstall declined" windowed 7thdroid.sh 6 cancel cancel 7
 check "declining keeps everything" test -f "$CD/pfx/drive_c/7th Heaven/7th Heaven.exe"
 check "the uninstall warning" grep -qF 'WARNING: THIS WILL PERMANENTLY DELETE ANY FF7 SAVES IN THE 7TH HEAVEN PREFIX.' "$T/zenity.log"
 before=$(other_prefixes)
-check "menu: uninstall, backing up first" windowed 7thdroid.sh 5 yes yes
+check "menu: uninstall, backing up first" windowed 7thdroid.sh 6 yes yes
 check "back to a menu with only Install" bash -c "grep '^list' '$T/zenity.log' | tail -n 1 | grep -F 'Install\\ 7th\\ Heaven' | grep -vqF 'Launch'"
 check "prefix removed" test ! -e "$CD"
 check "launcher and state removed" test ! -e "$T/.local/share/7thdroid"

@@ -3,15 +3,16 @@
 # wanted, the mods. Each is one .tar in Android's Documents folder, so it outlives 7th Heaven's prefix,
 # 7thDroid's own data and DroidDeck itself. Restoring keeps this install's game and library paths.
 
-backup_dir() {
-  if [ -n "${SEVENTHDROID_BACKUP_DIR:-}" ]; then
-    printf '%s\n' "$SEVENTHDROID_BACKUP_DIR"
-  elif [ -d /root/Storage ]; then
-    printf '%s\n' "/root/Storage/Documents/$APP_NAME Backups"
+# Android's Documents folder, where files meant to outlive DroidDeck go; the home folder elsewhere.
+android_documents() {
+  if [ -d /root/Storage ]; then
+    printf '%s\n' /root/Storage/Documents
   else
-    printf '%s\n' "$HOME/$APP_NAME Backups"
+    printf '%s\n' "$HOME"
   fi
 }
+
+backup_dir() { printf '%s\n' "${SEVENTHDROID_BACKUP_DIR:-$(android_documents)/$APP_NAME Backups}"; }
 
 seventh_workshop() { printf '%s\n' "$COMPATDATA/pfx/drive_c/7th Heaven/7thWorkshop"; }
 

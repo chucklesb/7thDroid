@@ -128,7 +128,8 @@ ui_error() {
   local text=$1
   [[ $text == *"$LOG_FILE"* ]] || text="$text
 
-The log is $LOG_FILE"
+The log is $LOG_FILE
+For a bug report, "Save logs" in $APP_NAME's menu collects every log, redacted."
   zen --error --no-markup --width=800 --text="$text" || true
 }
 

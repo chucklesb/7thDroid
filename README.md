@@ -68,6 +68,14 @@ Without that, the GOG installer stops with "File not fpund". 7thDroid passes the
   - **Restore a backup** puts everything back into the current install, keeping its game and mod-library locations. Saves from a different FF7 release are left out unless you ask for them, since they don't always carry over.
   - FFNx settings restored before FFNx is installed apply after your first play, like 7thDroid's other FFNx settings.
   - Backups are never deleted automatically; remove old ones in Android's Documents folder.
+- **Logs:** **Save logs** (in the menu even before 7th Heaven is installed) gathers, in one `.tar` in `Documents/7thDroid Logs`:
+  - DroidDeck's session logs (it keeps the last three sessions, desktop and Steam alike), and its recent tool and store logs;
+  - 7thDroid's install logs (the last three runs) and launch logs (the last two launches);
+  - 7th Heaven's `applog.txt`, its settings and its installer log;
+  - `FFNx.log`, `FFNx.toml` and `AppLoader.log` from the game folder;
+  - an `info.txt` with the versions and setup.
+
+  Every file goes through the same redaction as DroidDeck's own Share logs. It removes tokens, passwords, Steam Guard codes, account names, emails, Steam IDs, device serials and network addresses, and leaves out binary files. Still, look through it before you share it. The launch log needs a launcher written by this version: run **Update or repair** once after updating 7thDroid.
 - **Steam achievements (Steam copies only):** choose **Launch 7th Heaven with Steam**. The menu offers it once you've played FF7 through 7th Heaven once, because FFNx, which carries the Steam Compatibility setting, is installed at that first play. 7th Heaven starts as FF7's Steam app (39140 or 3837340) through its entry in Steam, so FF7 can use the Steam API. Starting that entry from Steam's library works too, but only the menu sets Steam Compatibility for you. Steam Cloud doesn't sync these saves, because they're kept in 7th Heaven's prefix.
 
 ## Installing
@@ -83,8 +91,8 @@ Without that, the GOG installer stops with "File not fpund". 7thDroid passes the
    need to point it at an installer or disc images.
 4. When it's done, the menu comes back with everything else: **Launch 7th Heaven**,
    **Launch 7th Heaven with Steam** (Steam copies of FF7 only), **Update or repair 7th Heaven**,
-   **Back up 7th Heaven**, **Restore a backup**, **Show the last log** and **Uninstall 7th Heaven**.
-   Each task returns to the menu when it finishes.
+   **Back up 7th Heaven**, **Restore a backup**, **Show the last log**, **Save logs** and
+   **Uninstall 7th Heaven**. Each task returns to the menu when it finishes.
    The 7thDroid tile is how you start 7th Heaven: 7thDroid adds no tile or menu entry of its own.
 
 To update 7thDroid itself, update the tile from the Desktop page when a new release is out; your 7th
@@ -121,6 +129,7 @@ Without a task option the script shows its menu. A task option runs that task on
 | `--steam-shortcut` | Only add 7th Heaven's Steam entry, for example after closing Steam. |
 | `--backup` | Back up the saves, 7th Heaven's settings and profiles, FFNx settings and (asked) the mods. |
 | `--restore [FILE]` | Restore a backup; without FILE, the script asks which. |
+| `--save-logs` | Save every log, redacted, to `Documents/7thDroid Logs`. |
 | `--uninstall` | Remove 7th Heaven's prefix, launcher, Steam entry and downloads (not the original game). |
 | `--version stable\|canary` | The 7th Heaven build. If you leave it out, the script asks. |
 | `--source PATH` | Use this game instead of searching. Repeat it once per disc. |
@@ -136,6 +145,8 @@ Without a task option the script shows its menu. A task option runs that task on
 The log is written to `~/.local/state/7thdroid/install.log`.
 
 ## Troubleshooting
+
+To report a problem, choose **Save logs** in 7thDroid's menu and attach the file it saves in `Documents/7thDroid Logs`.
 
 - **Launch with Steam doesn't start.** 7th Heaven's Steam entry is a Linux script. If Steam tries to run it with Proton, open its Properties → Compatibility and turn off the forced compatibility tool.
 - **The Steam entry wasn't added.** Steam has to be closed while it's written. Choose **Launch 7th Heaven with Steam**, and 7thDroid offers to add it once Steam is closed.

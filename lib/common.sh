@@ -22,6 +22,9 @@ LOG_TEE_PID=''
 
 start_log() {
   mkdir -p "$STATE_DIR"
+  # the last three runs' logs are kept
+  [ -f "$LOG_FILE.1" ] && mv -f -- "$LOG_FILE.1" "$LOG_FILE.2"
+  [ -f "$LOG_FILE" ] && mv -f -- "$LOG_FILE" "$LOG_FILE.1"
   : > "$LOG_FILE"
   exec > >(tee -a "$LOG_FILE") 2>&1
   LOG_TEE_PID=$!
