@@ -15,23 +15,42 @@ droiddeck_log_dir() {
   fi
 }
 
+# Save logs keeps this many of DroidDeck's sessions, the newest, as 7thDroid keeps three install logs.
+DROIDDECK_SESSIONS=3
+
+# ffnx_summary -> e.g. "1.25.2.0 (up to date; version from FFNx.log, so as of the last game start)"
+ffnx_summary() {
+  local state version log
+  case $(ffnx_state "$COMPATDATA") in
+    none) state="not installed yet" ;;
+    old) state="too old for 7th Heaven 4.6" ;;
+    current) state="up to date" ;;
+    *) state="unknown" ;;
+  esac
+  log="$(ff7_game_dir)/FFNx.log"
+  version=$(sed -n 's/.*FFNx driver version \([0-9][0-9.]*\).*/\1/p' "$log" 2>/dev/null | head -n1)
+  if [ -n "$version" ]; then
+    printf '%s (%s; version from FFNx.log, so as of the last game start)\n' "$version" "$state"
+  elif [ -f "$log" ]; then
+    printf '%s (FFNx.log names no version)\n' "$state"
+  else
+    printf '%s (no FFNx.log yet)\n' "$state"
+  fi
+}
+
 # write_log_info FILE - what the logs are about: versions, the install, the environment
 write_log_info() {
-  local ffnx_log
   {
     printf '%s logs, %s\n\n' "$APP_NAME" "$(date '+%Y-%m-%d %H:%M %Z')"
     printf '7thDroid: %s%s\n' "$(cat "$ROOT_DIR/VERSION" 2>/dev/null || echo '?')" "${SEVENTHDROID_APPIMAGE:+ (AppImage)}"
     printf 'System: %s\n' "$(uname -srm 2>/dev/null)"
     printf 'DroidDeck: see its session logs under droiddeck/\n'
     if [ -n "${COMPATDATA:-}" ]; then
-      printf '\nFF7: %s (%s%s)\n' "${FF7_VERSION:-?}" "${SOURCE_KIND:-?}" "${APPID:+, app $APPID}"
+      printf '\nFF7: %s [%s] (%s%s)\n' "$(ff7_release_label "${FF7_VERSION:-?}")" "${FF7_VERSION:-?}" "${SOURCE_KIND:-?}" "${APPID:+, app $APPID}"
       printf 'Game copy in the prefix: %s\n' "$([ "${GAME_COPY:-0}" = 1 ] && echo yes || echo no)"
       printf '7th Heaven: %s (%s)\n' "${SEVENTH_TAG:-?}" "${SEVENTH_CHANNEL:-?}"
       printf 'Proton for the prefix: %s\n' "$(chosen_proton "${COMPATDATA##*/}" 2>/dev/null || echo '?')"
-      printf 'FFNx: %s' "$(ffnx_state "$COMPATDATA")"
-      ffnx_log="$(ff7_game_dir)/FFNx.log"
-      [ -f "$ffnx_log" ] && printf ', %s' "$(head -n1 "$ffnx_log" | cut -c1-120)"
-      printf '\n'
+      printf 'FFNx: %s\n' "$(ffnx_summary)"
       printf 'Free space by the prefix: %s\n' "$(df -Ph "$COMPATDATA" 2>/dev/null | awk 'NR == 2 { print $4 }')"
     else
       printf '\n7th Heaven is not installed.\n'
@@ -61,14 +80,16 @@ save_logs() {
     d=$(ff7_game_dir)
     for f in FFNx.log FFNx.toml AppLoader.log; do add "game/$f" "$d/$f"; done
   fi
-  # As DroidDeck's own Share logs: its session folders (it keeps three), and recent tool and store logs.
+  # DroidDeck's newest session folders (it keeps many more; their names sort in the order they ran), and
+  # recent tool and store logs, as DroidDeck's own Share logs takes them.
   d=$(droiddeck_log_dir)
-  for s in "$d"/*/; do
-    name=${s%/}
-    name=${name##*/}
-    [[ $name =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2,}-. || $name =~ ^session-[0-9]{8}-[0-9]{6} ]] || continue
-    add "droiddeck/$name" "${s%/}"
-  done
+  while IFS= read -r name; do
+    add "droiddeck/$name" "$d/$name"
+  done < <(for s in "$d"/*/; do
+             name=${s%/}
+             name=${name##*/}
+             [[ $name =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2,}-. || $name =~ ^session-[0-9]{8}-[0-9]{6} ]] && printf '%s\n' "$name"
+           done | sort -V | tail -n "$DROIDDECK_SESSIONS")
   for s in tools stores; do
     [ -d "$d/$s" ] || continue
     while IFS= read -r f; do add "droiddeck/$s/${f##*/}" "$f"; done \

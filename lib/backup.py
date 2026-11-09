@@ -6,6 +6,7 @@ permissions, and mods are mostly compressed already.
     backup.py manifest FILE
     backup.py extract FILE NAME DEST
     backup.py settings FILE SETTINGS_XML
+    backup.py verify FILE
 
 create - writes OUT (through OUT.part). MANIFEST becomes manifest.env. Each NAME=SOURCE adds a folder
   under NAME/, leaving out the top-level entries named after !, or a file as NAME. Missing sources,
@@ -16,11 +17,16 @@ extract - unpacks NAME (a folder or a file) to DEST, overwriting files of the sa
   has no NAME.
 settings - writes the backup's 7th Heaven settings.xml over SETTINGS_XML, but keeps the FF7Exe,
   FF7InstalledVersion and LibraryLocation already there, so it still points at this install.
+verify - reads the whole backup: exits 1 (saying why) when it is truncated or damaged, has an entry
+  extract would refuse, or has no manifest naming its PARTS. Restoring checks this before changing
+  anything, and a new backup is checked right after it is written.
 """
 import os
 import re
 import sys
 import tarfile
+
+END_OF_ARCHIVE = 2 * tarfile.BLOCKSIZE
 
 KEEP_SETTINGS = ("FF7Exe", "FF7InstalledVersion", "LibraryLocation")
 
@@ -81,7 +87,7 @@ def extract(path, name, dest):
         for m in members:
             rel = m.name[len(name):].lstrip("/")
             target = os.path.realpath(os.path.join(top, rel)) if rel else top
-            if (m.name.startswith("/") or ".." in m.name.split("/") or not (m.isfile() or m.isdir())
+            if (unsafe(m.name) or not (m.isfile() or m.isdir())
                     or not (target == top or target.startswith(top + os.sep))):
                 print("%s: refusing %s" % (path, m.name), file=sys.stderr)
                 return 1
@@ -101,6 +107,44 @@ def extract(path, name, dest):
             os.replace(target + ".7thdroid", target)
             os.utime(target, (m.mtime, m.mtime))
     return 0 if members else 3
+
+
+def unsafe(name):
+    return name.startswith("/") or ".." in name.split("/")
+
+
+def verify(path):
+    """None when the backup reads through to its end-of-archive marker, else what is wrong with it."""
+    manifest = None
+    try:
+        with tarfile.open(path) as tar:
+            for m in tar:
+                if unsafe(m.name) or not (m.isfile() or m.isdir()):
+                    return "it has an entry that can't be restored: %s" % m.name
+                if m.isfile():
+                    with tar.extractfile(m) as f:
+                        data = b""
+                        while True:
+                            chunk = f.read(1 << 20)
+                            if not chunk:
+                                break
+                            if m.name == "manifest.env":
+                                data += chunk
+                    if m.name == "manifest.env":
+                        manifest = data.decode("utf-8", "replace")
+            end = tar.offset
+        # tarfile stops quietly at end of file, so a copy cut off between entries reads as complete:
+        # a whole backup ends with the two zero blocks every tar is closed with.
+        with open(path, "rb") as f:
+            f.seek(end)
+            tail = f.read(END_OF_ARCHIVE)
+        if len(tail) < END_OF_ARCHIVE or tail.strip(b"\0"):
+            return "it is incomplete (cut off at %d bytes)" % os.path.getsize(path)
+    except (tarfile.TarError, OSError, EOFError) as error:
+        return "it is damaged or incomplete (%s)" % error
+    if manifest is None or not re.search(r"^PARTS=\S", manifest, re.M):
+        return "it is not a 7thDroid backup (no manifest)"
+    return None
 
 
 def settings(path, current):
@@ -137,6 +181,12 @@ def main(argv):
         return extract(*args)
     if command == "settings" and len(args) == 2:
         return settings(*args)
+    if command == "verify" and len(args) == 1:
+        problem = verify(args[0])
+        if problem:
+            print("%s: %s" % (args[0], problem), file=sys.stderr)
+            return 1
+        return 0
     print(__doc__, file=sys.stderr)
     return 2
 

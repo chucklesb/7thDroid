@@ -142,6 +142,16 @@ pause() {
   read -r -p "    $* Press Enter to continue... " _ || true
 }
 
+# human_size KB -> the size in the largest unit it fills (1024 steps): 207 KB, 4.5 MB, 120 MB, 3.6 GB.
+# Sizes come from du -k, so KB is the smallest unit.
+human_size() {
+  awk -v k="${1:-0}" 'BEGIN {
+    split("KB MB GB TB", unit, " "); i = 1
+    while (k >= 1024 && i < 4) { k /= 1024; i++ }
+    if (i > 1 && k < 10) printf "%.1f %s\n", k, unit[i]; else printf "%d %s\n", k + 0.5, unit[i]
+  }'
+}
+
 # download URL [file name] -> prints the cached path
 download() {
   local url=$1 name=${2:-${1##*/}} dest
@@ -153,7 +163,7 @@ download() {
     run curl -fL --retry 4 -o "$dest" "$url" >&2
   else
     info "Downloading $name" >&2
-    curl -fL --retry 4 --retry-delay 2 --progress-bar -o "$dest.part" "$url" >&2 \
+    curl -fsSL --retry 4 --retry-delay 2 -o "$dest.part" "$url" >&2 \
       || { rm -f "$dest.part"; die "Download failed: $url"; }
     mv "$dest.part" "$dest"
   fi

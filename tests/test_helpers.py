@@ -373,6 +373,39 @@ class BackupTest(unittest.TestCase):
         self.assertEqual(self.tool("extract", self.tar, "saves", dest).returncode, 1)
         self.assertFalse(os.path.lexists(os.path.join(dest, "link")))
 
+    def verify(self, path=None):
+        return self.tool("verify", path or self.tar).returncode
+
+    def test_verify_reads_the_whole_backup(self):
+        import tarfile
+        self.write(os.path.join(self.src, "big.bin"), "x" * 300000)
+        self.tool("create", self.tar, self.manifest, "mods=%s!temp" % self.src)
+        self.assertEqual(self.verify(), 0)
+        with open(self.tar, "rb") as f:
+            data = f.read()
+        with tarfile.open(self.tar) as tar:
+            for _ in tar:
+                pass
+            end = tar.offset
+        cut = os.path.join(self.root, "cut.tar")
+        for size in (len(data) // 2, end):  # inside a file, and between entries with no end marker
+            with open(cut, "wb") as f:
+                f.write(data[:size])
+            result = self.tool("verify", cut)
+            self.assertEqual(result.returncode, 1, size)
+            self.assertIn("incomplete", result.stderr)
+
+    def test_verify_wants_a_manifest_and_safe_entries(self):
+        import tarfile
+        self.write(self.manifest, "BACKUP_DATE=2026-11-09 12:00\n")
+        self.tool("create", self.tar, self.manifest, "mods=%s!temp" % self.src)
+        self.assertEqual(self.verify(), 1)
+        self.bad_tar(tarfile.TarInfo("saves/../escaped.txt"))
+        self.assertEqual(self.verify(), 1)
+        with open(self.tar, "wb") as f:
+            f.write(b"not a tar at all" * 100)
+        self.assertEqual(self.verify(), 1)
+
     def test_settings_keep_this_installs_paths(self):
         old = os.path.join(self.root, "old.xml")
         self.write(old, '<?xml version="1.0" encoding="utf-8"?>\n<Settings>\n  <AppLanguage>de</AppLanguage>\n'

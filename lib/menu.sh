@@ -91,7 +91,7 @@ Launch 7th Heaven and play FF7 once first: 7th Heaven sets up its game driver th
     fi
     labels+=("Update or repair 7th Heaven" "Back up 7th Heaven" "Restore a backup" "Show the last log" "Save logs" "Uninstall 7th Heaven" "Quit")
     actions+=(update backup restore log logs uninstall quit)
-    choose pick "7th Heaven ${SEVENTH_TAG:+$SEVENTH_TAG }is installed for ${FF7_VERSION:-FINAL FANTASY VII}.$note" "${labels[@]}"
+    choose pick "7th Heaven ${SEVENTH_TAG:+$SEVENTH_TAG }is installed for FINAL FANTASY VII${FF7_VERSION:+, $(ff7_release_label "$FF7_VERSION")}.$note" "${labels[@]}"
     action=${actions[$pick]}
     case $action in
       launch)
@@ -99,7 +99,7 @@ Launch 7th Heaven and play FF7 once first: 7th Heaven sets up its game driver th
         apply_ffnx_settings 0
         exec bash "$LAUNCHER" ;;
       steam) launch_with_steam ;;
-      update) run_task --install ;;
+      update) run_task --install --update ;;
       backup) run_task --backup ;;
       restore)
         if [ -z "$(list_backups)" ]; then

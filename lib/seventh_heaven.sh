@@ -41,11 +41,12 @@ if exes:
 
 seventh_exe() { printf '%s\n' "$1/pfx/drive_c/7th Heaven/7th Heaven.exe"; }
 
-# ask_seventh_install COMPATDATA -> SEVENTH_RUN: 1 to run 7th Heaven's installer, 0 to keep what is there
+# ask_seventh_install COMPATDATA -> SEVENTH_RUN: 1 to run 7th Heaven's installer, 0 to keep what is there.
+# --update (the menu's Update or repair) and --reinstall run it without asking.
 ask_seventh_install() {
   SEVENTH_RUN=1
-  if [ -f "$(seventh_exe "$1")" ] && [ "$REINSTALL" != 1 ] \
-     && ! ask_yn "7th Heaven is already installed in this prefix. Run its installer again (update or repair)?" n; then
+  if [ -f "$(seventh_exe "$1")" ] && [ "$REINSTALL" != 1 ] && [ "$UPDATE_SEVENTH" != 1 ] \
+     && ! ask_yn "7th Heaven is already installed in this prefix. Run its installer again (update or repair)?" y; then
     SEVENTH_RUN=0
   fi
   return 0
@@ -72,7 +73,7 @@ configure_seventh_heaven() {
   local compatdata=$1 game_exe=$2 version=$3 workshop channel=Stable
   workshop=$compatdata/pfx/drive_c/7th\ Heaven/7thWorkshop
   [ "$SEVENTH_CHANNEL" = canary ] && channel=Canary
-  info "Pointing 7th Heaven at $game_exe ($version)"
+  info "Pointing 7th Heaven at $game_exe ($(ff7_release_label "$version"))"
   [ "$DRY_RUN" = 1 ] && return 0
   mkdir -p "$workshop/profiles" "$compatdata/pfx/drive_c/7th Heaven/mods"
   python - "$ASSETS_DIR/settings.xml.in" "$workshop/settings.xml" "$(prefix_winpath "$compatdata" "$game_exe")" "$version" \

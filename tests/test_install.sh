@@ -155,7 +155,8 @@ check "launcher runs the prefix's 7th Heaven" grep -qF "$CD/pfx/drive_c/7th\\ He
 check "launcher reports FF7's Steam app id" grep -qFe "--options 'SteamAppId=3837340 %command%'" "$T/.local/share/7thdroid/7th Heaven.sh"
 check "no app tile or KDE entry" test ! -e "$T/opt/droiddeck-apps/7thheaven" -a ! -e "$T/.local/share/applications/7th-heaven.desktop"
 check "Steam entry added for a Steam copy" python3 "$REPO/lib/steam_shortcut.py" has "$DD_BIN/droiddeck-steam-shortcuts" "$STEAM_ROOT" "$T/.local/share/7thdroid/7th Heaven.sh"
-check "second run skips finished steps" bash -c "cp '$STUB_LOG' '$T/first.log'; bash '$REPO/7thdroid.sh' --install --yes --version stable --no-copy-game >/dev/null 2>&1 && cmp -s '$STUB_LOG' '$T/first.log'"
+# a second run reruns only 7th Heaven's installer (an update or repair, the default answer)
+check "second run skips finished steps" bash -c "grep -v 7thHeaven-v '$STUB_LOG' > '$T/first.log'; bash '$REPO/7thdroid.sh' --install --yes --version stable --no-copy-game >/dev/null 2>&1 && cmp -s <(grep -v 7thHeaven-v '$STUB_LOG') '$T/first.log' && [ \$(grep -c 7thHeaven-v '$STUB_LOG') -eq 2 ]"
 cleanup
 
 echo "Steam 2013 release"
@@ -412,6 +413,7 @@ check "no FFNx yet: nothing to update" bash -c "! grep -q 'Updating FFNx' '$T/ou
 old_ffnx "$T/FF7"
 check "Update or repair succeeds" installer --source "$T/FF7"
 check "says why it updates FFNx" grep -q 'older than 7th Heaven needs (FFNx 1.25 or newer)' "$T/out.log"
+check "no download progress bar in the log" bash -c "! grep -qE '#=#|###' '$T/.local/state/7thdroid/install.log'"
 check "FFNx_steam_api.dll installed" test -f "$T/FF7/FFNx_steam_api.dll"
 check "the driver replaced" grep -qx 'FFNx 1.25.2' "$T/FF7/AF3DN.P"
 check "subfolders unpacked" test -f "$T/FF7/shaders/a.bin"
@@ -471,6 +473,8 @@ ARGS=(--install --version stable --copy-game)
 # warning: Continue; the Steam copy; restore: the older backup (the list is newest first after "Don't restore")
 check "reinstall with a restore" windowed 7thdroid.sh yes 0 2
 check "the restore was offered" grep -qF "Don\\'t\\ restore" "$T/zenity.log"
+check "the done window names the release as people do" grep -q 'installed.*for.*FINAL.*FANTASY.*VII.*Steam.*2026.*release' "$T/zenity.log"
+check "and never by 7th Heaven's internal name" bash -c "! grep -q SteamReRelease '$T/zenity.log'"
 check "saves restored into workingdir" grep -qx slot1 "$WD/save/save00.ff7"
 check "profiles restored" test -f "$WS/profiles/Favourite.xml"
 check "7th Heaven settings restored" grep -q '<AppLanguage>de</AppLanguage>' "$WS/settings.xml"
@@ -484,6 +488,14 @@ check "menu: launch" windowed 7thdroid.sh 0
 check "the FFNx settings merged in once FFNx exists" grep -qx 'renderer_backend = 5' "$WD/FFNx.toml"
 check "FFNx's new options kept" grep -qx 'new_key = 1' "$WD/FFNx.toml"
 check "nothing left pending" test ! -e "$WD/FFNx.toml.7thdroid-restore"
+check "the menu names the release as people do" bash -c "grep -m1 '^list' '$T/zenity.log' | grep -q 'FINAL.*FANTASY.*VII.*Steam.*2026.*release'"
+check "and never by 7th Heaven's internal name" bash -c "! grep -q SteamReRelease '$T/zenity.log'"
+: > "$STUB_LOG"
+# menu: Update or repair (after Launch and Launch with Steam); warning: Continue; the Steam copy; Stable;
+# keep the game copy; no backup
+check "menu: update or repair" windowed 7thdroid.sh 2 yes 0 0 yes no
+check "it doesn't ask again whether to update" bash -c "! grep -q 'Run.*its.*installer.*again' '$T/zenity.log'"
+check "7th Heaven's installer ran" grep -q '7thHeaven-v4.6.0.0_Release.exe' "$STUB_LOG"
 cleanup
 
 echo "Backup and restore: Steam 2013 release, without mods"
@@ -520,13 +532,19 @@ echo other > "$T/other/save/save00.ff7"
 python3 "$REPO/lib/backup.py" create "$T/backups/7thDroid-2026-11-01_100000.tar" "$T/manifest" "workshop/settings.xml=$WS/settings.xml" "saves=$T/other/save"
 check "restore from another release" bash -c "bash '$REPO/7thdroid.sh' --restore '$T/backups/7thDroid-2026-11-01_100000.tar' --yes > '$T/out.log' 2>&1"
 check "its saves were left out" grep -qx slot1 "$SAVE/save00.ff7"
-check "says why" grep -q 'saves are from the SteamReRelease release' "$T/out.log"
+check "says why" grep -qF "saves are from FF7's Steam (2026 release); this install uses Steam (2013 release)" "$T/out.log"
 rm -f "$SAVE/save00.ff7"
 ARGS=()
 # menu: Restore a backup; the newest backup (the Steam 2013 one); restore: yes
 check "menu: restore a backup" windowed 7thdroid.sh 3 0 yes
 check "the backups listed newest first" bash -c "grep '^list' '$T/zenity.log' | sed -n 2p | grep -q 'TRUE 0 [^F]*without.*mods FALSE 1 2026-11-01'"
 check "the save is back from the menu" grep -qx slot1 "$SAVE/save00.ff7"
+head -c "$(( $(stat -c %s "$B") / 2 ))" "$B" > "$T/backups/7thDroid-2026-11-09_235959.tar"
+echo changed > "$SAVE/save00.ff7"
+before=$(md5sum "$WS/settings.xml" "$SAVE/save00.ff7")
+check "a damaged backup is refused" bash -c "! bash '$REPO/7thdroid.sh' --restore '$T/backups/7thDroid-2026-11-09_235959.tar' --yes > '$T/out.log' 2>&1"
+check "says nothing was restored" grep -q 'damaged or incomplete, so nothing was restored' "$T/out.log"
+check "and nothing was" test "$(md5sum "$WS/settings.xml" "$SAVE/save00.ff7")" = "$before"
 cleanup
 
 echo "Uninstall stops when the backup fails"
@@ -538,6 +556,35 @@ export SEVENTHDROID_BACKUP_DIR=$T/not-a-folder/backups
 ARGS=(--uninstall)
 windowed 7thdroid.sh yes yes
 check "uninstall stops" test $? -ne 0
+check "says so" grep -q 'The backup failed, so nothing was removed' "$T/out.log"
+check "nothing removed" test -f "$(own_prefix)/pfx/drive_c/7th Heaven/7th Heaven.exe"
+cleanup
+
+echo "A backup that doesn't read back is removed"
+fixture
+steam_game "$STEAM_ROOT" 39140 "FINAL FANTASY VII" ff7_en.exe
+check "installer succeeds" installer
+# python3 that cuts every backup it writes in half, as a full card would
+REAL_PYTHON=$(command -v python3)
+mkdir -p "$T/shim"
+cat > "$T/shim/python3" <<EOF
+#!/bin/bash
+"$REAL_PYTHON" "\$@"; rc=\$?
+prev=''
+for a in "\$@"; do
+  if [ "\$prev" = create ]; then head -c 3000 "\$a" > "\$a.cut" && mv -f "\$a.cut" "\$a"; fi
+  prev=\$a
+done
+exit \$rc
+EOF
+chmod +x "$T/shim/python3"
+check "--backup fails" bash -c "! PATH='$T/shim':\$PATH bash '$REPO/7thdroid.sh' --backup --yes --no-mods > '$T/out.log' 2>&1"
+check "says why" grep -q 'could not be checked after saving' "$T/out.log"
+check "the bad backup is removed" test "$(backups | wc -l)" -eq 0
+ARGS=(--uninstall)
+# back up first: yes; remove: yes
+(PATH=$T/shim:$PATH windowed 7thdroid.sh yes yes)
+check "an uninstall that asked for a backup stops" test $? -ne 0
 check "says so" grep -q 'The backup failed, so nothing was removed' "$T/out.log"
 check "nothing removed" test -f "$(own_prefix)/pfx/drive_c/7th Heaven/7th Heaven.exe"
 cleanup
@@ -562,10 +609,13 @@ printf '\177ELF\0\0\0' > "$T/ddlogs/2026-11-09-01-desktop/core"
 echo "SteamUI: OnLoginStateChange someone 2 1 0 0" > "$T/ddlogs/2026-11-09-02-steam/steam/connection_log.txt"
 echo "Flushed store 'userlocal' to '/root/.local/share/Steam/userdata/39734273/config/localconfig.vdf'"   > "$T/ddlogs/2026-11-09-02-steam/steam/configstore_log.txt"
 echo "tool ran" > "$T/ddlogs/tools/droiddeck-epic.log"
+for s in 2026-11-09-03-7thdroid-canary 2026-11-08-04-steam 2026-11-08-03-desktop 2026-11-07-12-desktop; do
+  mkdir -p "$T/ddlogs/$s" && echo "$s" > "$T/ddlogs/$s/session.log"
+done
 echo "not a session" > "$T/ddlogs/not-a-session/x.log"
 printf '"users" { "76561198000000001" { "AccountName" "maskedplayer" } }' > "$T/root/.local/share/Steam/config/loginusers.vdf"
 echo "7th Heaven started, password=hunter2hunter2" > "$CD/pfx/drive_c/7th Heaven/7thWorkshop/applog.txt"
-echo "FFNx 1.25.2 started, user 76561198012341234" > "$GAME/FFNx.log"
+printf '[00000000] INFO: FFNx driver version 1.25.2.0\n[00000001] TRACE: user 76561198012341234\n' > "$GAME/FFNx.log"
 : > "$STUB_LOG"
 check "menu: launch" windowed 7thdroid.sh 0
 check "menu: launch again" windowed 7thdroid.sh 0
@@ -581,12 +631,16 @@ check "it has 7thDroid's, 7th Heaven's, FFNx's and DroidDeck's logs" has_entries
   7th-heaven/settings.xml game/FFNx.log droiddeck/2026-11-09-01-desktop/session.log \
   droiddeck/2026-11-09-02-steam/steam/connection_log.txt droiddeck/tools/droiddeck-epic.log
 check "only DroidDeck's session folders" bash -c "! grep -q not-a-session <<< '$NAMES'"
+check "the newest three sessions" has_entries droiddeck/2026-11-09-03-7thdroid-canary/session.log
+check "and no older ones" bash -c "! grep -qE '2026-11-0[78]-' <<< '$NAMES'"
 TEXT=$(tar_text "$L")
 check "binaries left out, and listed" grep -q $'droiddeck/2026-11-09-01-desktop/core\t7\tleft out: binary' <<< "$TEXT"
 check "no token, password, account name, Steam ID or account ID left" bash -c "! grep -qE 'abcdef123456|hunter2|maskedplayer|someone 2|76561198012341234|39734273' <<< \"\$1\"" _ "$TEXT"
 check "the account ID masked in Steam's userdata paths" grep -q 'userdata/\*\*\*\*4273/config' <<< "$TEXT"
 check "redacted, not dropped" grep -q 'access_token=<redacted:token> for <redacted:account>' <<< "$TEXT"
 check "info.txt describes the install" grep -q '^7th Heaven: 4.6.0 (stable)' <<< "$TEXT"
+check "info.txt names the release" grep -q '^FF7: Steam (2013 release) \[Steam\] (steam, app 39140)' <<< "$TEXT"
+check "info.txt gives FFNx's version, not its log line" grep -q '^FFNx: 1.25.2.0 (' <<< "$TEXT"
 check "save logs keeps its own log" test -f "$T/.local/state/7thdroid/save-logs.log"
 cleanup
 
@@ -624,7 +678,7 @@ check "every question before any work" bash -c "awk '/^proton-run/ { work = 1 } 
 check "FF7Exe is the copy, on C:" grep -qF '<FF7Exe>C:\FINAL FANTASY VII\FFVII.exe</FF7Exe>' <(settings "$CD")
 check "no shortcuts asked or added" test ! -e "$T/opt/droiddeck-apps/7thheaven" -a ! -e "$T/.local/share/applications/7th-heaven.desktop"
 check "no Steam entry for a GOG copy" test ! -e "$STEAM_ROOT/userdata/12345/config/shortcuts.vdf"
-check "says it is done" grep -qF 'info --title=7thDroid --info --no-markup --width=700 --text=7th\ Heaven\ 4.6.0\ is\ installed\ for\ GOG' "$T/zenity.log"
+check "says it is done" grep -qF 'info --title=7thDroid --info --no-markup --width=700 --text=7th\ Heaven\ 4.6.0\ is\ installed\ for\ FINAL\ FANTASY\ VII\,\ GOG' "$T/zenity.log"
 check "back to the full menu" bash -c "grep '^list\|^info' '$T/zenity.log' | tail -n 1 | grep -qF 'Uninstall\ 7th\ Heaven'"
 check "no shortcuts item" bash -c "! grep -q 'recreate\\ shortcuts' '$T/zenity.log'"
 ARGS=()
@@ -701,6 +755,9 @@ check "asks for DroidDeck 0.6.7 or newer" grep -q "needs DroidDeck 0.6.7 or newe
 check "the missing piece is in the log" grep -q "steam-compatibility: build_key" "$T/.local/state/7thdroid/install.log"
 check "nothing downloaded or made" test ! -e "$(own_prefix)"
 cleanup
+
+echo "Sizes in sensible units"
+check "KB, MB and GB" bash -c "source '$REPO/lib/common.sh' && [ \"\$(human_size 207)\" = '207 KB' ] && [ \"\$(human_size 4608)\" = '4.5 MB' ] && [ \"\$(human_size 122880)\" = '120 MB' ] && [ \"\$(human_size 3774874)\" = '3.6 GB' ]"
 
 echo "Error windows name the log once"
 fixture
