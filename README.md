@@ -63,6 +63,11 @@ Without that, the GOG installer stops with "File not fpund". 7thDroid passes the
 
   7th Heaven installs FFNx, with its default settings, the first time you play, so these apply from the second launch on. 7th Heaven also resets them when it updates FFNx, and the menu sets them again on the next launch.
 - **FFNx updates:** 7th Heaven 4.6 and newer need FFNx 1.25 or newer, but updating 7th Heaven doesn't update the FFNx already in the game folder. When that FFNx is too old, 7thDroid installs the newest one from 7th Heaven's FFNx update channel, during **Update or repair 7th Heaven** or just before a launch. Your FFNx settings are kept, and the old `FFNx.toml` is saved beside the new one as `FFNx.toml.7thdroid-bak`.
+- **Backups:** **Back up 7th Heaven** saves your FF7 saves, 7th Heaven's settings and profiles, your FFNx settings and controls, and, if you want, your mods, as one `.tar` file in Android's Documents folder (`Documents/7thDroid Backups`). That folder outlives uninstalling 7th Heaven and reinstalling DroidDeck, and you can copy it to a PC.
+  - 7thDroid also offers a backup before **Update or repair** and before uninstalling, and offers to restore one after a fresh install.
+  - **Restore a backup** puts everything back into the current install, keeping its game and mod-library locations. Saves from a different FF7 release are left out unless you ask for them, since they don't always carry over.
+  - FFNx settings restored before FFNx is installed apply after your first play, like 7thDroid's other FFNx settings.
+  - Backups are never deleted automatically; remove old ones in Android's Documents folder.
 - **Steam achievements (Steam copies only):** choose **Launch 7th Heaven with Steam**. The menu offers it once you've played FF7 through 7th Heaven once, because FFNx, which carries the Steam Compatibility setting, is installed at that first play. 7th Heaven starts as FF7's Steam app (39140 or 3837340) through its entry in Steam, so FF7 can use the Steam API. Starting that entry from Steam's library works too, but only the menu sets Steam Compatibility for you. Steam Cloud doesn't sync these saves, because they're kept in 7th Heaven's prefix.
 
 ## Installing
@@ -78,7 +83,8 @@ Without that, the GOG installer stops with "File not fpund". 7thDroid passes the
    need to point it at an installer or disc images.
 4. When it's done, the menu comes back with everything else: **Launch 7th Heaven**,
    **Launch 7th Heaven with Steam** (Steam copies of FF7 only), **Update or repair 7th Heaven**,
-   **Show the last log** and **Uninstall 7th Heaven**. Each task returns to the menu when it finishes.
+   **Back up 7th Heaven**, **Restore a backup**, **Show the last log** and **Uninstall 7th Heaven**.
+   Each task returns to the menu when it finishes.
    The 7thDroid tile is how you start 7th Heaven: 7thDroid adds no tile or menu entry of its own.
 
 To update 7thDroid itself, update the tile from the Desktop page when a new release is out; your 7th
@@ -86,7 +92,7 @@ Heaven install is kept.
 
 Uninstalling removes 7th Heaven's prefix (7th Heaven, its mods, the FF7 saves made through it, and the
 game copy if you made one), its launcher, its Steam entry and its downloads. Your original FF7 game files
-are never touched.
+are never touched. It offers to back up first, and its backups are kept.
 
 ### From a terminal
 
@@ -113,11 +119,15 @@ Without a task option the script shows its menu. A task option runs that task on
 |---|---|
 | `--install` | Install 7th Heaven, or update or repair it. `--yes` on its own implies it. |
 | `--steam-shortcut` | Only add 7th Heaven's Steam entry, for example after closing Steam. |
+| `--backup` | Back up the saves, 7th Heaven's settings and profiles, FFNx settings and (asked) the mods. |
+| `--restore [FILE]` | Restore a backup; without FILE, the script asks which. |
 | `--uninstall` | Remove 7th Heaven's prefix, launcher, Steam entry and downloads (not the original game). |
 | `--version stable\|canary` | The 7th Heaven build. If you leave it out, the script asks. |
 | `--source PATH` | Use this game instead of searching. Repeat it once per disc. |
 | `--game-dir DIR` | Where a GOG installer puts the game (default `~/Games/FINAL FANTASY VII`). |
 | `--copy-game`, `--no-copy-game` | Copy the game into 7th Heaven's prefix, or use it where it is, without asking. |
+| `--mods`, `--no-mods` | Include the mods in a backup, or leave them out, without asking. |
+| `--no-backup` | Don't offer a backup before updating or uninstalling, or a restore after a fresh install. |
 | `--winetricks-dinput` | Also run winetricks' `dinput` verb, if a Proton build that ships protonfixes is installed (e.g. DroidDeck-Proton). |
 | `--reinstall` | Run every step again. |
 | `--yes` | Accept every default without asking. |

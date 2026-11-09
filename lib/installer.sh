@@ -15,7 +15,7 @@ show_warning() {
 
 # Every question comes first; once the work starts, only the GOG or CD installer's own windows remain.
 run_install() {
-  local labels line pick previous steam_note
+  local labels line pick previous steam_note restore_file
   ensure_droiddeck_proton
 
   step "Finding FINAL FANTASY VII"
@@ -61,6 +61,17 @@ run_install() {
       ask_ff7_version ;;
   esac
   ask_seventh_install "$COMPATDATA"
+  # An install that is about to change can be backed up first; a fresh one can get a backup restored.
+  BACKUP_WANT=0 restore_file=''
+  if [ -f "$STATE_FILE" ] && [ -f "$(seventh_exe "$COMPATDATA")" ]; then
+    ask_backup
+  elif [ "$NO_BACKUP" != 1 ] && [ "$ASSUME_YES" != 1 ]; then
+    choose_backup restore_file "Restore a backup when the install is done?" "Don't restore" || true
+  fi
+
+  if [ "$BACKUP_WANT" = 1 ]; then
+    make_backup || die "The backup failed, so nothing was changed. See $LOG_FILE, or run again with --no-backup."
+  fi
 
   step "Choosing the Proton prefix"
   info "7th Heaven's own prefix: $COMPATDATA"
@@ -98,6 +109,10 @@ run_install() {
   write_launcher "$(seventh_exe "$COMPATDATA")" "$(ff7_steam_appid)"
   [ "$DRY_RUN" = 1 ] || save_state SOURCE_KIND APPID GAME_DIR GAME_EXE GAME_COPY COMPATDATA FF7_VERSION SEVENTH_CHANNEL SEVENTH_TAG
   remove_old_entries
+  if [ -n "$restore_file" ]; then
+    restore_backup "$restore_file" \
+      || warn "The backup could not be fully restored; see the log. \"Restore a backup\" in $APP_NAME's menu tries again."
+  fi
   if [ -n "$(ff7_steam_appid)" ]; then
     step "Adding 7th Heaven to Steam"
     add_steam_shortcut || true

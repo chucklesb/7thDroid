@@ -22,10 +22,17 @@ uninstall() {
   if load_state 2>/dev/null && [ -n "${COMPATDATA:-}" ] && [ "$COMPATDATA" != "$prefix" ]; then
     info "An older $APP_NAME installed into $COMPATDATA. That prefix is not removed; delete it yourself if you no longer need it."
   fi
+  BACKUP_FILE=''
+  if [ -f "$(seventh_exe "$prefix")" ]; then
+    COMPATDATA=$prefix ask_backup
+  fi
   ask_yn "Remove 7th Heaven, its mods, and any game saves made with it?
 
 WARNING: THIS WILL PERMANENTLY DELETE ANY FF7 SAVES IN THE 7TH HEAVEN PREFIX." n \
     || { info "Nothing was removed."; return 1; }
+  if [ "${BACKUP_WANT:-0}" = 1 ]; then
+    make_backup || die "The backup failed, so nothing was removed. See $LOG_FILE, or uninstall with --no-backup."
+  fi
 
   remove_old_entries
   if [ "$HAVE_SHORTCUTS_TOOL" = 1 ]; then

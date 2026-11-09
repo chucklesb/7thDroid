@@ -5,6 +5,8 @@
     ffnx.py exists SETTINGS_XML DRIVE_C
     ffnx.py driver SETTINGS_XML DRIVE_C
     ffnx.py install ZIP FOLDER
+    ffnx.py merge NEW OLD
+    ffnx.py path SETTINGS_XML DRIVE_C TAG
 
 SETTINGS_XML is 7th Heaven's settings.xml; its FF7Exe names the game folder, which holds FFNx and
 FFNx.toml. DRIVE_C is the prefix's drive_c; other drive letters go through the prefix's dosdevices.
@@ -20,6 +22,8 @@ driver - prints FOLDER, STATE, CHANNEL and ASSET_PREFIX, tab-separated. STATE is
   CHANNEL is 7th Heaven's FFNx update channel; ASSET_PREFIX names the FFNx release zip that fits.
 install - unpacks an FFNx release into FOLDER as 7th Heaven's updater does, then gives the new
   FFNx.toml the values the old one had, for every key both have. The old file is kept beside it.
+merge - gives NEW (an FFNx.toml) the values of OLD in the same way.
+path - prints the Linux path of a path setting in settings.xml, such as LibraryLocation.
 """
 import os
 import re
@@ -32,9 +36,9 @@ KEY = re.compile(r"^(\s*)([A-Za-z0-9_]+)(\s*=\s*)(.*?)(\r?\n?)$", re.S)
 STEAM_API = "FFNx_steam_api.dll"
 
 
-def read_settings(settings):
+def read_settings(settings, tags=("FF7Exe", "FF7InstalledVersion", "FFNxUpdateChannel")):
     root = ET.parse(settings).getroot()
-    return {tag: (root.findtext(tag) or "").strip() for tag in ("FF7Exe", "FF7InstalledVersion", "FFNxUpdateChannel")}
+    return {tag: (root.findtext(tag) or "").strip() for tag in tags}
 
 
 def windows_to_linux(path, drive_c):
@@ -160,6 +164,21 @@ def main(argv):
     command, args = (argv[1:2] or [""])[0], argv[2:]
     if command == "install":
         return install(*args[:2])
+    if command == "merge":
+        new, old = args[:2]
+        with open(new, encoding="utf-8", errors="replace", newline="") as f:
+            new_text = f.read()
+        with open(old, encoding="utf-8", errors="replace", newline="") as f:
+            old_text = f.read()
+        write(new, merge(new_text, old_text))
+        return 0
+    if command == "path":
+        settings, drive_c, tag = args[:3]
+        path = windows_to_linux(read_settings(settings, (tag,))[tag], drive_c)
+        if not path:
+            return 1
+        print(path)
+        return 0
     if command not in ("settings", "exists", "driver"):
         print(__doc__, file=sys.stderr)
         return 2

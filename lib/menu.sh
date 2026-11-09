@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # 7thDroid's menu, which the AppImage opens: Install 7th Heaven until it is installed, then launching,
-# updating or repairing, the log and uninstalling. Each task runs as its own 7thdroid.sh, so
+# updating or repairing, backing up and restoring, the log and uninstalling. Each task runs as its own 7thdroid.sh, so
 # a task that fails or is cancelled ends there and the menu comes back.
 
 installed() {
@@ -54,7 +54,9 @@ ffnx_installed() {
 }
 
 # ready_to_launch - an FFNx too old for 7th Heaven is updated first; 7th Heaven would refuse to start FF7.
+# FFNx settings restored before FFNx was installed are merged in once it is.
 ready_to_launch() {
+  finish_ffnx_restore
   [ "$(ffnx_state "$COMPATDATA")" = old ] || return 0
   run_task --update-ffnx && return 0
   pause "FFNx could not be updated, and 7th Heaven won't start FF7 with the old one. See the log. In 7th Heaven, Settings > General Settings > FFNx: Check for Updates updates it too."
@@ -84,8 +86,8 @@ run_menu() {
 Launch 7th Heaven and play FF7 once first: 7th Heaven sets up its game driver then, and \"Launch 7th Heaven with Steam\" appears here after that."
       fi
     fi
-    labels+=("Update or repair 7th Heaven" "Show the last log" "Uninstall 7th Heaven" "Quit")
-    actions+=(update log uninstall quit)
+    labels+=("Update or repair 7th Heaven" "Back up 7th Heaven" "Restore a backup" "Show the last log" "Uninstall 7th Heaven" "Quit")
+    actions+=(update backup restore log uninstall quit)
     choose pick "7th Heaven ${SEVENTH_TAG:+$SEVENTH_TAG }is installed for ${FF7_VERSION:-FINAL FANTASY VII}.$note" "${labels[@]}"
     action=${actions[$pick]}
     case $action in
@@ -95,6 +97,13 @@ Launch 7th Heaven and play FF7 once first: 7th Heaven sets up its game driver th
         exec bash "$LAUNCHER" ;;
       steam) launch_with_steam ;;
       update) run_task --install ;;
+      backup) run_task --backup ;;
+      restore)
+        if [ -z "$(list_backups)" ]; then
+          pause "There are no backups in $(backup_dir) yet. \"Back up 7th Heaven\" makes one."
+        else
+          run_task --restore
+        fi ;;
       log)
         if [ "$UI_MODE" = zenity ]; then
           zen --text-info --width=1000 --height=700 --filename="$LOG_FILE" || true
